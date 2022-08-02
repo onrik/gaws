@@ -7,7 +7,7 @@ import (
 )
 
 func TestParsePath(t *testing.T) {
-	parser := NewParser(nil, nil)
+	parser := NewParser(nil, nil, nil)
 	method, path, err := parser.parsePath("@openapi GET /api/v1/test ")
 	require.Nil(t, err)
 	require.Equal(t, "get", method)
@@ -15,7 +15,7 @@ func TestParsePath(t *testing.T) {
 }
 
 func TestParseParam(t *testing.T) {
-	parser := NewParser(nil, nil)
+	parser := NewParser(nil, nil, nil)
 	param, err := parser.parseParam("@openapiParam id in=path, type=int, example=11")
 
 	require.Nil(t, err)
@@ -27,7 +27,11 @@ func TestParseParam(t *testing.T) {
 }
 
 func TestParseRequest(t *testing.T) {
-	parser := NewParser(nil, []Struct{Struct{
+	parser := NewParser(&Doc{
+		OpenAPI:    "3.0.0",
+		Paths:      map[string]Path{},
+		Components: Component{map[string]SecurityScheme{}, map[string]Schema{}},
+	}, []Struct{Struct{
 		Name: "User",
 		Fields: []StructField{
 			StructField{
@@ -38,7 +42,7 @@ func TestParseRequest(t *testing.T) {
 				IsPointer:  false,
 			},
 		},
-	}})
+	}}, make(map[string]string))
 
 	// Test invalid schema
 	body, err := parser.parseRequest(`@openapiRequest application/json {"foo", "bar"}`)
@@ -66,7 +70,6 @@ func TestParseRequest(t *testing.T) {
 	require.True(t, e)
 	require.Equal(t, "", content.Example)
 	require.Equal(t, "object", content.Schema.Type)
-	require.Equal(t, "string", content.Schema.Properties["name"].Type)
 
 	// Test json schema
 	body, err = parser.parseRequest(`@openapiRequest application/json {"user": User, "id": int}`)
@@ -77,12 +80,13 @@ func TestParseRequest(t *testing.T) {
 	require.Equal(t, "", content.Example)
 	require.Equal(t, "object", content.Schema.Type)
 	require.Equal(t, "integer", content.Schema.Properties["id"].Type)
-	require.Equal(t, "object", content.Schema.Properties["user"].Type)
-	require.Equal(t, "string", content.Schema.Properties["user"].Properties["name"].Type)
 }
 
 func TestParseResponse(t *testing.T) {
-	parser := NewParser(nil, []Struct{Struct{
+	parser := NewParser(&Doc{
+		OpenAPI:    "3.0.0",
+		Paths:      map[string]Path{},
+		Components: Component{map[string]SecurityScheme{}, map[string]Schema{}}}, []Struct{Struct{
 		Name: "User",
 		Fields: []StructField{
 			StructField{
@@ -93,7 +97,7 @@ func TestParseResponse(t *testing.T) {
 				IsPointer:  false,
 			},
 		},
-	}})
+	}}, make(map[string]string))
 
 	// Test invalid schema
 	status, contentType, content, err := parser.parseResponse(`@openapiResponse 200 application/json {"foo", "bar"}`)
@@ -124,7 +128,6 @@ func TestParseResponse(t *testing.T) {
 	require.Equal(t, "application/json", contentType)
 	require.Equal(t, "", content.Example)
 	require.Equal(t, "object", content.Schema.Type)
-	require.Equal(t, "string", content.Schema.Properties["name"].Type)
 
 	// Test json schema
 	status, contentType, content, err = parser.parseResponse(`@openapiResponse 200 application/json {"user": User, "id": int}`)
@@ -134,8 +137,6 @@ func TestParseResponse(t *testing.T) {
 	require.Equal(t, "", content.Example)
 	require.Equal(t, "object", content.Schema.Type)
 	require.Equal(t, "integer", content.Schema.Properties["id"].Type)
-	require.Equal(t, "object", content.Schema.Properties["user"].Type)
-	require.Equal(t, "string", content.Schema.Properties["user"].Properties["name"].Type)
 
 	// Test application/octet-stream
 	status, contentType, content, err = parser.parseResponse(`@openapiResponse 200 application/octet-stream`)
@@ -147,7 +148,10 @@ func TestParseResponse(t *testing.T) {
 }
 
 func TestParseStruct(t *testing.T) {
-	parser := NewParser(nil, []Struct{Struct{
+	parser := NewParser(&Doc{
+		OpenAPI:    "3.0.0",
+		Paths:      map[string]Path{},
+		Components: Component{map[string]SecurityScheme{}, map[string]Schema{}}}, []Struct{Struct{
 		Name: "User",
 		Fields: []StructField{
 			StructField{
@@ -158,56 +162,60 @@ func TestParseStruct(t *testing.T) {
 				IsPointer:  false,
 			},
 		},
-	}})
+	}}, make(map[string]string))
 
-	s, err := parser.parseStruct("Test")
+	s, err := parser.parseStruct("Test", []string{})
 	require.NotNil(t, err)
 	require.Equal(t, "Unknown type: Test", err.Error())
 
-	s, err = parser.parseStruct("User")
+	s, err = parser.parseStruct("User", []string{})
 	require.Nil(t, err)
 	require.Equal(t, "object", s.Type)
 
-	s, err = parser.parseStruct("[]User")
+	s, err = parser.parseStruct("[]User", []string{})
 	require.Nil(t, err)
 	require.Equal(t, "array", s.Type)
 }
 
 func TestTypeToProperty(t *testing.T) {
-	parser := NewParser(nil, nil)
 
-	p, err := parser.typeToProperty("", "int")
+	parser := NewParser(&Doc{
+		OpenAPI:    "3.0.0",
+		Paths:      map[string]Path{},
+		Components: Component{map[string]SecurityScheme{}, map[string]Schema{}}}, nil, nil)
+
+	p, err := parser.typeToProperty("", "int", []string{})
 	require.Nil(t, err)
 	require.Equal(t, "integer", p.Type)
 	require.Equal(t, "", p.Format)
 
-	p, err = parser.typeToProperty("", "*int")
+	p, err = parser.typeToProperty("", "*int", []string{})
 	require.Nil(t, err)
 	require.Equal(t, "integer", p.Type)
 	require.Equal(t, "", p.Format)
 
-	p, err = parser.typeToProperty("", "string")
+	p, err = parser.typeToProperty("", "string", []string{})
 	require.Nil(t, err)
 	require.Equal(t, "string", p.Type)
 	require.Equal(t, "", p.Format)
 
-	p, err = parser.typeToProperty("", "time.Time")
+	p, err = parser.typeToProperty("", "time.Time", []string{})
 	require.Nil(t, err)
 	require.Equal(t, "string", p.Type)
 	require.Equal(t, "date-time", p.Format)
 
-	p, err = parser.typeToProperty("", "*time.Time")
+	p, err = parser.typeToProperty("", "*time.Time", []string{})
 	require.Nil(t, err)
 	require.Equal(t, "string", p.Type)
 	require.Equal(t, "date-time", p.Format)
 
-	p, err = parser.typeToProperty("", "[]string")
+	p, err = parser.typeToProperty("", "[]string", []string{})
 	require.Nil(t, err)
 	require.Equal(t, "array", p.Type)
 	require.NotNil(t, p.Items)
 	require.Equal(t, "string", p.Items.Type)
 
-	p, err = parser.typeToProperty("", "User")
+	p, err = parser.typeToProperty("", "User", []string{})
 	require.NotNil(t, err)
 	require.Equal(t, "Unknown type: User", err.Error())
 
@@ -224,10 +232,9 @@ func TestTypeToProperty(t *testing.T) {
 		},
 	})
 
-	p, err = parser.typeToProperty("", "User")
+	p, err = parser.typeToProperty("", "User", []string{})
 	require.Nil(t, err)
 	require.Equal(t, "object", p.Type)
-	require.Equal(t, "string", p.Properties["name"].Type)
 }
 
 func TestParseTags(t *testing.T) {

@@ -8,9 +8,9 @@ import (
 var (
 	httpMethods = []string{"get", "head", "post", "put", "delete", "connect", "options", "trace", "patch"}
 
-	paramIn      = []string{"path", "query", "header"}
-	paramTypes   = []string{"string", "integer", "number", "boolean", "object", "array"}
-	paramFormats = []string{"float", "double", "date", "date-time", "byte", "binary", "email", "uuid", "uri", "hostname", "ipv4", "ipv6"}
+	paramIn    = []string{"path", "query", "header"}
+	paramTypes = []string{"string", "integer", "number", "boolean", "object", "array"}
+	// paramFormats = []string{"float", "double", "date", "date-time", "byte", "binary", "email", "uuid", "uri", "hostname", "ipv4", "ipv6"}
 
 	requestContentTypes  = []string{"application/json", "multipart/form-data"}
 	responseContentTypes = []string{"text/plain", "application/json", "application/octet-stream"}

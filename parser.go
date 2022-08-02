@@ -15,6 +15,7 @@ const (
 	deprecatedPrefix = "@openapiDeprecated"
 	requestPrefix    = "@openapiRequest "
 	responsePrefix   = "@openapiResponse "
+	securityPrefix   = "@openapiSecurity"
 )
 
 var (
@@ -34,6 +35,7 @@ var (
 		"float64": "number",
 		"bool":    "boolean",
 		"string":  "string",
+		"byte":    "string",
 		"[]byte":  "string",
 	}
 
@@ -48,12 +50,14 @@ var (
 type Parser struct {
 	structs []Struct
 	doc     *Doc
+	origins map[string]string
 }
 
-func NewParser(doc *Doc, structs []Struct) *Parser {
+func NewParser(doc *Doc, structs []Struct, origins map[string]string) *Parser {
 	return &Parser{
 		structs: structs,
 		doc:     doc,
+		origins: origins,
 	}
 }
 
@@ -62,6 +66,7 @@ func (p *Parser) parseComment(comment string) (err error) {
 	paths := map[string][]string{}
 	endpoint := Endpoint{
 		Responses: map[string]Response{},
+		Security:  make([]map[string][]string, 0),
 	}
 
 	for _, l := range splits {
@@ -115,6 +120,13 @@ func (p *Parser) parseComment(comment string) (err error) {
 					contentType: content,
 				},
 			}
+		}
+		if strings.HasPrefix(l, securityPrefix) {
+			sec := p.parseSecurity(l)
+			if len(sec) > 0 {
+				endpoint.Security = append(endpoint.Security, sec)
+			}
+
 		}
 	}
 
@@ -187,10 +199,10 @@ func (p *Parser) parseParam(s string) (Parameter, error) {
 		In:       params["in"],
 		Required: required,
 		Schema: &Property{
-			Type:    params["type"],
-			Format:  format,
-			Example: params["example"],
-			Default: params["default"],
+			Type:        params["type"],
+			Format:      format,
+			Example:     params["example"],
+			Default:     params["default"],
 			Description: params["description"],
 		},
 	}
@@ -214,7 +226,6 @@ func (p *Parser) parseRequest(s string) (body RequestBody, err error) {
 	body.Content = map[string]Content{
 		contentType: content,
 	}
-
 	return body, validateRequest(body)
 }
 
@@ -244,6 +255,22 @@ func (p *Parser) parseResponse(s string) (status string, contentType string, con
 	return status, contentType, content, err
 }
 
+// parseSecurity @openapiSecurity api_key apiKey cookie AuthKey
+// @openapiSecurity Name Type In KeyName
+func (p *Parser) parseSecurity(commentLine string) map[string][]string {
+	secMap := make(map[string][]string)
+	splits := strings.SplitN(commentLine, " ", 5)
+
+	securityName := trim(splits[1])
+	schemeType := trim(splits[2])
+	schemeIn := trim(splits[3])
+	schemeName := trim(splits[4])
+	p.doc.Components.SecuritySchemes = make(map[string]SecurityScheme)
+	p.doc.Components.SecuritySchemes[securityName] = SecurityScheme{"", schemeType, schemeName, schemeIn}
+	secMap[securityName] = []string{}
+	return secMap
+}
+
 // parseSchema {"foo": "bar"}
 func (p *Parser) parseSchema(s string) (Content, error) {
 	content := Content{}
@@ -261,7 +288,7 @@ func (p *Parser) parseSchema(s string) (Content, error) {
 		content.Schema.Type = "object"
 		content.Schema.Properties = map[string]Property{}
 		for n, t := range fields {
-			property, err := p.typeToProperty("", t)
+			property, err := p.typeToProperty("", t, []string{})
 			if err != nil {
 				return content, err
 			}
@@ -271,7 +298,7 @@ func (p *Parser) parseSchema(s string) (Content, error) {
 		return content, nil
 	}
 
-	schema, err := p.parseStruct(s)
+	schema, err := p.parseStruct(s, []string{})
 	if err != nil {
 		return content, err
 	}
@@ -280,20 +307,33 @@ func (p *Parser) parseSchema(s string) (Content, error) {
 	return content, nil
 }
 
-// parseStruct User
-func (p *Parser) parseStruct(s string) (Schema, error) {
-	schema := Schema{
+// parseStruct
+func (p *Parser) parseStruct(s string, stack []string) (Schema, error) {
+	var schema Schema
+	if _, ok := p.doc.Components.Schemas[s]; ok {
+		return Schema{Ref: fmt.Sprintf("#/components/schemas/%s", s)}, nil
+	}
+
+	for i := range stack {
+		if stack[i] == s {
+			return Schema{Ref: fmt.Sprintf("#/components/schemas/%s", s)}, nil
+		}
+	}
+
+	stack = append(stack, strings.TrimPrefix(s, "[]"))
+	schema = Schema{
 		Properties: map[string]Property{},
 	}
 
 	if strings.HasPrefix(s, "[]") {
-		arraySchema, err := p.parseStruct(strings.TrimPrefix(s, "[]"))
+		arraySchema, err := p.parseStruct(strings.TrimPrefix(s, "[]"), stack)
 		if err != nil {
 			return schema, err
 		}
 		schema.Type = "array"
 		schema.Properties = nil
 		schema.Items = &arraySchema
+		schema.Items.Ref = arraySchema.Ref
 		return schema, nil
 	}
 
@@ -313,7 +353,7 @@ func (p *Parser) parseStruct(s string) (Schema, error) {
 			name = tag
 		}
 
-		property, err := p.typeToProperty(getPkg(s), st.Fields[i].Type)
+		property, err := p.typeToProperty(getPkg(s), st.Fields[i].Type, stack)
 		if err != nil {
 			return schema, err
 		}
@@ -333,9 +373,15 @@ func (p *Parser) parseStruct(s string) (Schema, error) {
 		}
 
 		schema.Properties[name] = property
+		schema.Ref = fmt.Sprintf("#/components/schemas/%s", s)
 	}
 
-	return schema, nil
+	p.doc.Components.Schemas[s] = schema
+
+	return Schema{
+		Type: schema.Type,
+		Ref:  fmt.Sprintf("#/components/schemas/%s", s),
+	}, nil
 }
 
 func (p *Parser) structByName(name string) *Struct {
@@ -348,8 +394,9 @@ func (p *Parser) structByName(name string) *Struct {
 	return nil
 }
 
-func (p *Parser) typeToProperty(pkg, t string) (property Property, err error) {
+func (p *Parser) typeToProperty(pkg, t string, stack []string) (property Property, err error) {
 	t = strings.TrimPrefix(t, "*")
+
 	if isBaseType(t) {
 		property.Type = typesMap[t]
 		property.Format = formatsMap[t]
@@ -361,39 +408,45 @@ func (p *Parser) typeToProperty(pkg, t string) (property Property, err error) {
 		return
 	}
 
+	// Redeclarated type
+	ot, hasOrigin := p.origin(t)
+	if hasOrigin {
+		return p.typeToProperty(pkg, ot, stack)
+	}
+
 	if strings.HasPrefix(t, "[]") {
 		property.Type = "array"
-		prop, err := p.typeToProperty(pkg, strings.TrimPrefix(t, "[]"))
+		prop, err := p.typeToProperty(pkg, strings.TrimPrefix(t, "[]"), stack)
 		if err != nil {
 			return property, err
 		}
 
 		property.Items = &Schema{
-			Type: prop.Type,
+			Type: property.Type,
 		}
 
+		property.Items.Items = prop.Items
+		property.Items.Type = prop.Type
 		if prop.Type == "object" {
 			property.Items.Properties = prop.Properties
 		}
 		if prop.Type == "array" {
 			property.Items.Items = prop.Items
+
 		}
+		property.Items.Ref = prop.Ref
 
 		return property, nil
 	}
 
-	// Is alias
-	st := p.structByName(t)
-	if st != nil && st.Origin != "" {
-		return p.typeToProperty(pkg, st.Origin)
-	}
-
 	// Is struct
-	schema, err := p.parseStruct(addPkg(pkg, t))
+	schema, err := p.parseStruct(addPkg(pkg, t), stack)
 	if err != nil {
 		return property, err
 	}
 	property.Type = "object"
+	property.Ref = schema.Ref
+
 	property.Properties = schema.Properties
 
 	return property, nil
@@ -413,18 +466,27 @@ func parseTags(s string) []string {
 	return tags
 }
 
-//parseSummary @openapiSummary Some text
+// parseSummary @openapiSummary Some text
 func parseSummary(s string) string {
 	return strings.TrimPrefix(s, summaryPrefix)
 }
 
-//parseDesc @openapiDesc Some text
+// parseDesc @openapiDesc Some text
 func parseDesc(s string) string {
 	return strings.TrimPrefix(s, descPrefix)
 }
 
 func isBaseType(t string) bool {
 	return typesMap[t] != ""
+}
+
+// origin return origin of redeclarated type and true flag
+func (p *Parser) origin(t string) (string, bool) {
+	ot := p.origins[t]
+	if ot != "" && t != ot {
+		return ot, true
+	}
+	return t, false
 }
 
 func isTime(t string) bool {

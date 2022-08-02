@@ -1,10 +1,10 @@
 package main
 
 import (
-	"fmt"
 	"go/ast"
 	"go/parser"
 	"go/token"
+	"log"
 	"path/filepath"
 	"reflect"
 	"strings"
@@ -18,8 +18,6 @@ type StructField struct {
 	Tag        string
 	IsExported bool
 	IsPointer  bool
-
-	// Struct *Struct
 }
 type Struct struct {
 	Name   string
@@ -27,21 +25,23 @@ type Struct struct {
 	Fields []StructField
 }
 
-func parseStructs(prefix, path string, deep bool) ([]Struct, error) {
+func parseStructs(prefix, path string, deep bool) (structsParser, error) {
 	p := structsParser{
 		prefix:    prefix,
 		recursive: deep,
+		origins:   make(map[string]string),
 	}
 
 	err := p.parse(path)
 
-	return p.structs, err
+	return p, err
 }
 
 type structsParser struct {
 	prefix    string
 	recursive bool
 	structs   []Struct
+	origins   map[string]string
 }
 
 func (p *structsParser) parse(path string) error {
@@ -63,6 +63,8 @@ func (p *structsParser) parse(path string) error {
 						renamedImports[name] = map[string]bool{}
 					}
 					renamedImports[name][i.Name.Name] = true
+					_, pkg := filepath.Split(name)
+					renamedImports[name][pkg] = true
 				}
 			}
 			ast.Inspect(f, p.inspectFile)
@@ -78,16 +80,16 @@ func (p *structsParser) parse(path string) error {
 
 	if p.recursive {
 		config := &packages.Config{
-			Mode: packages.LoadAllSyntax,
+			Mode: packages.LoadAllSyntax, // nolint: staticcheck
 			Dir:  path,
 		}
 
-		pkgs2, err := packages.Load(config)
+		pkgList, err := packages.Load(config)
 		if err != nil {
 			return err
 		}
 
-		for name, i := range pkgs2[0].Imports {
+		for name, i := range pkgList[0].Imports {
 			if len(i.GoFiles) == 0 {
 				continue
 			}
@@ -104,11 +106,19 @@ func (p *structsParser) parse(path string) error {
 			}
 
 			for i := range names {
-				pkgStructs, err := parseStructs(names[i], pkgPath, false)
+				pkg, err := parseStructs(names[i], pkgPath, false)
 				if err != nil {
 					return err
 				}
-				p.structs = append(p.structs, pkgStructs...)
+				p.structs = append(p.structs, pkg.structs...)
+
+			}
+
+			// For redeclarated types
+			for i := range p.structs {
+				if p.structs[i].Origin != "" {
+					p.origins[p.structs[i].Name] = p.structs[i].Origin
+				}
 			}
 		}
 	}
@@ -183,7 +193,7 @@ func getType(e ast.Expr) string {
 		// TODO
 		return ""
 	default:
-		fmt.Println("Unsupported type:", reflect.TypeOf(t))
+		log.Println("Unsupported type:", reflect.TypeOf(t))
 		return ""
 	}
 }

@@ -83,7 +83,7 @@ func parseParams(str string) (map[string]string, error) {
 func parseParam(str string) (string, string, error) {
 	ss := strings.Split(str, "=")
 	key := trim(ss[0])
-	value := trim(getStr(ss, 1))
+	value := strings.ReplaceAll(trim(getStr(ss, 1)), `'`, `"`)
 
 	return key, value, nil
 

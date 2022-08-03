@@ -30,14 +30,14 @@ func TestParseParams(t *testing.T) {
 	require.Equal(t, "", params["required"])
 
 	// Test json example
-	params, err = parseParams(`required, type=string, example={"foo": "bar"}`)
+	params, err = parseParams(`required, type=string, example={'foo': 'bar'}`)
 	require.Nil(t, err)
 	require.Equal(t, 3, len(params))
 	require.Equal(t, "string", params["type"])
 	require.Equal(t, `{"foo": "bar"}`, params["example"])
 	require.Equal(t, "", params["required"])
 
-	params, err = parseParams(`example={"foo": "bar", "id": 1}`)
+	params, err = parseParams(`example={'foo': 'bar', 'id': 1}`)
 	require.Nil(t, err)
 	require.Equal(t, `{"foo": "bar", "id": 1}`, params["example"])
 }

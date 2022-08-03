@@ -33,7 +33,7 @@ func getTag(s, tag string) string {
 	return strings.Split(t.Get(tag), ",")[0]
 }
 
-func getFormatFromTag(s string) (map[string]string, error) {
+func getParamsFromTag(s string) (map[string]string, error) {
 	t := reflect.StructTag(strings.Trim(s, "`"))
 	o := t.Get("openapi")
 	if o == "" {
@@ -42,15 +42,51 @@ func getFormatFromTag(s string) (map[string]string, error) {
 	return parseParams(o)
 }
 
-func parseParams(s string) (map[string]string, error) {
-	ss := strings.Split(s, ",")
+func parseParams(str string) (map[string]string, error) {
+	temp := []rune{}
 	params := map[string]string{}
-	for _, s := range ss {
-		splits := strings.Split(s, "=")
-		params[trim(splits[0])] = trim(getStr(splits, 1))
+	opened := 0
+	for _, s := range str {
+		if s == '{' {
+			opened++
+		}
+		if s == '}' {
+			opened--
+		}
+
+		if s != ',' || opened > 0 {
+			temp = append(temp, rune(s))
+			continue
+		}
+
+		key, value, err := parseParam(string(temp))
+		if err != nil {
+			return nil, err
+		}
+		if key != "" {
+			params[key] = value
+		}
+		temp = []rune{}
+	}
+
+	key, value, err := parseParam(string(temp))
+	if err != nil {
+		return nil, err
+	}
+	if key != "" {
+		params[key] = value
 	}
 
 	return params, nil
+}
+
+func parseParam(str string) (string, string, error) {
+	ss := strings.Split(str, "=")
+	key := trim(ss[0])
+	value := trim(getStr(ss, 1))
+
+	return key, value, nil
+
 }
 
 func strIn(s string, ss []string) bool {

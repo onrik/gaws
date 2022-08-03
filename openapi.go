@@ -1,19 +1,21 @@
 package main
 
 type Property struct {
-	Type        string              `yaml:"type,omitempty"`
-	Description string              `yaml:"description,omitempty"`
-	Format      string              `yaml:"format,omitempty"`
-	Minimum     int                 `yaml:"minimum,omitempty"`
-	Maximum     int                 `yaml:"maximum,omitempty"`
-	Enum        []string            `yaml:"enum,omitempty"`
-	Default     string              `yaml:"default,omitempty"`
-	Example     string              `yaml:"example,omitempty"`
-	Style       string              `yaml:"style,omitempty"`
-	Explode     bool                `yaml:"explode,omitempty"`
-	Properties  map[string]Property `yaml:"properties,omitempty"`
-	Items       *Schema             `yaml:"items,omitempty"`
-	Ref         string              `yaml:"$ref,omitempty"`
+	Type                 string              `yaml:"type,omitempty"`
+	Description          string              `yaml:"description,omitempty"`
+	Format               string              `yaml:"format,omitempty"`
+	Required             bool                `yaml:"required,omitempty"`
+	Minimum              int                 `yaml:"minimum,omitempty"`
+	Maximum              int                 `yaml:"maximum,omitempty"`
+	Enum                 []string            `yaml:"enum,omitempty"`
+	Default              string              `yaml:"default,omitempty"`
+	Example              string              `yaml:"example,omitempty"`
+	Style                string              `yaml:"style,omitempty"`
+	Explode              bool                `yaml:"explode,omitempty"`
+	Properties           map[string]Property `yaml:"properties,omitempty"`
+	AdditionalProperties *map[string]string  `yaml:"additionalProperties,omitempty"`
+	Items                *Schema             `yaml:"items,omitempty"`
+	Ref                  string              `yaml:"$ref,omitempty"`
 }
 
 type Schema struct {

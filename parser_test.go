@@ -156,16 +156,25 @@ func TestParseResponse(t *testing.T) {
 }
 
 func TestParseStruct(t *testing.T) {
-	parser := NewParser(&Doc{
+	doc := Doc{
 		OpenAPI:    "3.0.0",
 		Paths:      map[string]Path{},
-		Components: Component{map[string]SecurityScheme{}, map[string]Schema{}}}, []Struct{Struct{
+		Components: Component{map[string]SecurityScheme{}, map[string]Schema{}},
+	}
+	parser := NewParser(&doc, []Struct{{
 		Name: "User",
 		Fields: []StructField{
-			StructField{
+			{
 				Name:       "Name",
 				Type:       "string",
 				Tag:        `json:"name"`,
+				IsExported: true,
+				IsPointer:  false,
+			},
+			{
+				Name:       "ID",
+				Type:       "string",
+				Tag:        `json:"id" openapi:"required,format=uuid"`,
 				IsExported: true,
 				IsPointer:  false,
 			},
@@ -179,6 +188,11 @@ func TestParseStruct(t *testing.T) {
 	s, err = parser.parseStruct("User", []string{})
 	require.Nil(t, err)
 	require.Equal(t, "object", s.Type)
+
+	user := doc.Components.Schemas["User"]
+	require.Equal(t, 2, len(user.Properties))
+	require.Equal(t, "uuid", user.Properties["id"].Format)
+	require.True(t, user.Properties["id"].Required)
 
 	s, err = parser.parseStruct("[]User", []string{})
 	require.Nil(t, err)

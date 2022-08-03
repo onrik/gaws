@@ -150,13 +150,7 @@ func (p *structsParser) inspectFile(node ast.Node) bool {
 
 	fields := []StructField{}
 	for _, field := range s.Fields.List {
-		f := StructField{
-			Type: getType(field.Type),
-		}
-		if f.Type == "" {
-			continue
-		}
-		f.IsPointer = strings.HasPrefix(f.Type, "*")
+		f := StructField{}
 		if len(field.Names) > 0 {
 			f.Name = field.Names[0].Name
 			f.IsExported = field.Names[0].IsExported()
@@ -168,6 +162,12 @@ func (p *structsParser) inspectFile(node ast.Node) bool {
 		if !f.IsExported {
 			continue
 		}
+		f.Type = getType(field.Type)
+		f.IsPointer = strings.HasPrefix(f.Type, "*")
+		if f.Type == "" {
+			continue
+		}
+
 		fields = append(fields, f)
 	}
 
@@ -189,7 +189,9 @@ func getType(e ast.Expr) string {
 		return getType(t.X) + "." + getType(t.Sel)
 	case *ast.StarExpr:
 		return "*" + getType(t.X)
-	case *ast.FuncType, *ast.ChanType, *ast.MapType, *ast.StructType, *ast.InterfaceType:
+	case *ast.MapType:
+		return "map"
+	case *ast.FuncType, *ast.ChanType, *ast.StructType, *ast.InterfaceType:
 		// TODO
 		return ""
 	default:

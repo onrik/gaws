@@ -189,7 +189,7 @@ func (p *Parser) parseParam(s string) (Parameter, error) {
 		params["type"] = typesMap[params["type"]]
 	}
 
-	required := params["required"] == "true"
+	_, required := params["required"]
 	if params["required"] == "" && params["in"] == "path" {
 		required = true
 	}
@@ -358,18 +358,21 @@ func (p *Parser) parseStruct(s string, stack []string) (Schema, error) {
 			return schema, err
 		}
 
-		formats, err := getFormatFromTag(st.Fields[i].Tag)
+		params, err := getParamsFromTag(st.Fields[i].Tag)
 		if err != nil {
 			return schema, err
 		}
-		if formats["type"] != "" {
-			property.Type = formats["type"]
+		if params["type"] != "" {
+			property.Type = params["type"]
 		}
-		if formats["format"] != "" {
-			property.Format = formats["format"]
+		if params["format"] != "" {
+			property.Format = params["format"]
 		}
-		if formats["example"] != "" {
-			property.Example = formats["example"]
+		if params["example"] != "" {
+			property.Example = params["example"]
+		}
+		if _, ok := params["required"]; ok {
+			property.Required = true
 		}
 
 		schema.Properties[name] = property
@@ -405,6 +408,12 @@ func (p *Parser) typeToProperty(pkg, t string, stack []string) (property Propert
 	if isTime(t) {
 		property.Type = "string"
 		property.Format = "date-time"
+		return
+	}
+
+	if t == "map" {
+		property.Type = "object"
+		property.AdditionalProperties = &map[string]string{}
 		return
 	}
 

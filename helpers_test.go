@@ -22,7 +22,24 @@ func TestStrIn(t *testing.T) {
 }
 
 func TestParseParams(t *testing.T) {
+	params, err := parseParams("required, type=string, example=1")
+	require.Nil(t, err)
+	require.Equal(t, 3, len(params))
+	require.Equal(t, "string", params["type"])
+	require.Equal(t, "1", params["example"])
+	require.Equal(t, "", params["required"])
 
+	// Test json example
+	params, err = parseParams(`required, type=string, example={"foo": "bar"}`)
+	require.Nil(t, err)
+	require.Equal(t, 3, len(params))
+	require.Equal(t, "string", params["type"])
+	require.Equal(t, `{"foo": "bar"}`, params["example"])
+	require.Equal(t, "", params["required"])
+
+	params, err = parseParams(`example={"foo": "bar", "id": 1}`)
+	require.Nil(t, err)
+	require.Equal(t, `{"foo": "bar", "id": 1}`, params["example"])
 }
 
 func TestParseJSONSchema(t *testing.T) {

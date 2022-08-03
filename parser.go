@@ -7,15 +7,14 @@ import (
 )
 
 const (
-	pathPrefix       = "@openapi "
-	paramPrefix      = "@openapiParam "
-	tagsPrefix       = "@openapiTags "
-	summaryPrefix    = "@openapiSummary "
-	descPrefix       = "@openapiDesc "
-	deprecatedPrefix = "@openapiDeprecated"
-	requestPrefix    = "@openapiRequest "
-	responsePrefix   = "@openapiResponse "
-	securityPrefix   = "@openapiSecurity"
+	pathPrefix     = "@openapi "
+	paramPrefix    = "@openapiParam "
+	tagsPrefix     = "@openapiTags "
+	summaryPrefix  = "@openapiSummary "
+	descPrefix     = "@openapiDesc "
+	requestPrefix  = "@openapiRequest "
+	responsePrefix = "@openapiResponse "
+	securityPrefix = "@openapiSecurity"
 )
 
 var (
@@ -63,7 +62,7 @@ func NewParser(doc *Doc, structs []Struct, origins map[string]string) *Parser {
 
 func (p *Parser) parseComment(comment string) (err error) {
 	splits := strings.Split(comment, "\n")
-	paths := map[string][]string{}
+	paths := map[string]map[string]bool{}
 	endpoint := Endpoint{
 		Responses: map[string]Response{},
 		Security:  make([]map[string][]string, 0),
@@ -71,11 +70,14 @@ func (p *Parser) parseComment(comment string) (err error) {
 
 	for _, l := range splits {
 		if strings.HasPrefix(l, pathPrefix) {
-			method, path, err := p.parsePath(l)
+			method, path, deprecated, err := p.parsePath(l)
 			if err != nil {
 				return wrapError(err, l)
 			}
-			paths[path] = append(paths[path], method)
+			if _, ok := paths[path]; !ok {
+				paths[path] = map[string]bool{}
+			}
+			paths[path][method] = deprecated
 		}
 		if strings.HasPrefix(l, tagsPrefix) {
 			endpoint.Tags = parseTags(l)
@@ -87,10 +89,6 @@ func (p *Parser) parseComment(comment string) (err error) {
 
 		if strings.HasPrefix(l, descPrefix) {
 			endpoint.Description = parseDesc(l)
-		}
-
-		if strings.HasPrefix(l, deprecatedPrefix) {
-			endpoint.Deprecated = true
 		}
 
 		if strings.HasPrefix(l, paramPrefix) {
@@ -136,21 +134,22 @@ func (p *Parser) parseComment(comment string) (err error) {
 
 	if len(endpoint.Responses) == 0 {
 		for path := range paths {
-			for _, method := range paths[path] {
+			for method := range paths[path] {
 				return fmt.Errorf("No %s for: %s %s", trim(responsePrefix), upper(method), path)
 			}
 		}
 	}
 
 	for path := range paths {
-		for _, method := range paths[path] {
-
+		for method := range paths[path] {
+			e := endpoint
+			e.Deprecated = paths[path][method]
 			if _, ex := p.doc.Paths[path]; !ex {
 				p.doc.Paths[path] = Path{
-					method: endpoint,
+					method: e,
 				}
 			} else {
-				p.doc.Paths[path][method] = endpoint
+				p.doc.Paths[path][method] = e
 			}
 		}
 	}
@@ -159,12 +158,13 @@ func (p *Parser) parseComment(comment string) (err error) {
 }
 
 // parsePath @openapi GET /foo/bar
-func (p *Parser) parsePath(s string) (method, path string, err error) {
+func (p *Parser) parsePath(s string) (method, path string, deprecated bool, err error) {
 	s = strings.TrimPrefix(s, pathPrefix)
 	splits := strings.Split(s, " ")
 
 	method = strings.ToLower(trim(splits[0]))
 	path = trim(getStr(splits, 1))
+	deprecated = trim(getStr(splits, 2)) == "deprecated"
 	err = validatePath(method, path)
 
 	return

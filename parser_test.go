@@ -8,10 +8,18 @@ import (
 
 func TestParsePath(t *testing.T) {
 	parser := NewParser(nil, nil, nil)
-	method, path, err := parser.parsePath("@openapi GET /api/v1/test ")
+	method, path, deprecated, err := parser.parsePath("@openapi GET /api/v1/test ")
 	require.Nil(t, err)
 	require.Equal(t, "get", method)
 	require.Equal(t, "/api/v1/test", path)
+	require.False(t, deprecated)
+
+	// Test deprecated
+	method, path, deprecated, err = parser.parsePath("@openapi GET /api/v1/test deprecated ")
+	require.Nil(t, err)
+	require.Equal(t, "get", method)
+	require.Equal(t, "/api/v1/test", path)
+	require.True(t, deprecated)
 }
 
 func TestParseParam(t *testing.T) {

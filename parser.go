@@ -135,7 +135,7 @@ func (p *Parser) parseComment(comment string) (err error) {
 	if len(endpoint.Responses) == 0 {
 		for path := range paths {
 			for method := range paths[path] {
-				return fmt.Errorf("No %s for: %s %s", trim(responsePrefix), upper(method), path)
+				return fmt.Errorf("no %s for: %s %s", trim(responsePrefix), upper(method), path)
 			}
 		}
 	}
@@ -320,7 +320,6 @@ func (p *Parser) parseStruct(s string, stack []string) (Schema, error) {
 		}
 	}
 
-	stack = append(stack, strings.TrimPrefix(s, "[]"))
 	schema = Schema{
 		Properties: map[string]Property{},
 	}
@@ -333,13 +332,13 @@ func (p *Parser) parseStruct(s string, stack []string) (Schema, error) {
 		schema.Type = "array"
 		schema.Properties = nil
 		schema.Items = &arraySchema
-		schema.Items.Ref = arraySchema.Ref
 		return schema, nil
 	}
 
+	stack = append(stack, s)
 	st := p.structByName(s)
 	if st == nil {
-		return schema, fmt.Errorf("Unknown type: %s", s)
+		return schema, fmt.Errorf("unknown type: %s", s)
 	}
 
 	schema.Type = "object"
@@ -376,14 +375,12 @@ func (p *Parser) parseStruct(s string, stack []string) (Schema, error) {
 		}
 
 		schema.Properties[name] = property
-		schema.Ref = fmt.Sprintf("#/components/schemas/%s", s)
 	}
 
 	p.doc.Components.Schemas[s] = schema
 
 	return Schema{
-		Type: schema.Type,
-		Ref:  fmt.Sprintf("#/components/schemas/%s", s),
+		Ref: fmt.Sprintf("#/components/schemas/%s", s),
 	}, nil
 }
 

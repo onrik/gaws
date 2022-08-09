@@ -77,7 +77,8 @@ func TestParseRequest(t *testing.T) {
 	content, e = body.Content["application/json"]
 	require.True(t, e)
 	require.Equal(t, "", content.Example)
-	require.Equal(t, "object", content.Schema.Type)
+	require.Equal(t, "", content.Schema.Type)
+	require.NotEqual(t, "", content.Schema.Ref)
 
 	// Test json schema
 	body, err = parser.parseRequest(`@openapiRequest application/json {"user": User, "id": int}`)
@@ -135,7 +136,8 @@ func TestParseResponse(t *testing.T) {
 	require.Equal(t, "200", status)
 	require.Equal(t, "application/json", contentType)
 	require.Equal(t, "", content.Example)
-	require.Equal(t, "object", content.Schema.Type)
+	require.Equal(t, "", content.Schema.Type)
+	require.NotEqual(t, "", content.Schema.Ref)
 
 	// Test json schema
 	status, contentType, content, err = parser.parseResponse(`@openapiResponse 200 application/json {"user": User, "id": int}`)
@@ -183,11 +185,12 @@ func TestParseStruct(t *testing.T) {
 
 	s, err := parser.parseStruct("Test", []string{})
 	require.NotNil(t, err)
-	require.Equal(t, "Unknown type: Test", err.Error())
+	require.Equal(t, "unknown type: Test", err.Error())
 
 	s, err = parser.parseStruct("User", []string{})
 	require.Nil(t, err)
-	require.Equal(t, "object", s.Type)
+	require.Equal(t, "", s.Type)
+	require.NotEqual(t, "", s.Ref)
 
 	user := doc.Components.Schemas["User"]
 	require.Equal(t, 2, len(user.Properties))
@@ -239,12 +242,12 @@ func TestTypeToProperty(t *testing.T) {
 
 	p, err = parser.typeToProperty("", "User", []string{})
 	require.NotNil(t, err)
-	require.Equal(t, "Unknown type: User", err.Error())
+	require.Equal(t, "unknown type: User", err.Error())
 
 	parser.structs = append(parser.structs, Struct{
 		Name: "User",
 		Fields: []StructField{
-			StructField{
+			{
 				Name:       "Name",
 				Type:       "string",
 				Tag:        `json:"name"`,

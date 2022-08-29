@@ -4,7 +4,6 @@ type Property struct {
 	Type                 string              `yaml:"type,omitempty"`
 	Description          string              `yaml:"description,omitempty"`
 	Format               string              `yaml:"format,omitempty"`
-	Required             bool                `yaml:"required,omitempty"`
 	Minimum              int                 `yaml:"minimum,omitempty"`
 	Maximum              int                 `yaml:"maximum,omitempty"`
 	Enum                 []string            `yaml:"enum,omitempty"`
@@ -23,6 +22,7 @@ type Schema struct {
 	Format     string              `yaml:"format,omitempty"`
 	Ref        string              `yaml:"$ref,omitempty"`
 	Properties map[string]Property `yaml:"properties,omitempty"`
+	Required   []string            `yaml:"required,omitempty"`
 	Items      *Schema             `yaml:"items,omitempty"`
 }
 

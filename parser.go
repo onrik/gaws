@@ -371,7 +371,7 @@ func (p *Parser) parseStruct(s string, stack []string) (Schema, error) {
 			property.Example = params["example"]
 		}
 		if _, ok := params["required"]; ok {
-			property.Required = true
+			schema.Required = append(schema.Required, name)
 		}
 
 		schema.Properties[name] = property

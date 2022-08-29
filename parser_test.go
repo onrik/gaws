@@ -195,7 +195,7 @@ func TestParseStruct(t *testing.T) {
 	user := doc.Components.Schemas["User"]
 	require.Equal(t, 2, len(user.Properties))
 	require.Equal(t, "uuid", user.Properties["id"].Format)
-	require.True(t, user.Properties["id"].Required)
+	require.Equal(t, []string{"id"}, user.Required)
 
 	s, err = parser.parseStruct("[]User", []string{})
 	require.Nil(t, err)

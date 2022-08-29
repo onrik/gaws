@@ -21,6 +21,15 @@ func TestStrIn(t *testing.T) {
 	require.False(t, strIn("4", []string{"1", "2", "3"}))
 }
 
+func TestGetParamsFromTag(t *testing.T) {
+	values, err := getParamsFromTag(`openapiDesc:"foo" openapiExample:"22" openapiEnum:"1,2,3"`)
+	require.Nil(t, err)
+	require.Equal(t, 3, len(values))
+	require.Equal(t, "foo", values["description"])
+	require.Equal(t, "22", values["example"])
+	require.Equal(t, "1,2,3", values["enum"])
+}
+
 func TestParseParams(t *testing.T) {
 	params, err := parseParams("required, type=string, example=1")
 	require.Nil(t, err)

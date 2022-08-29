@@ -180,6 +180,13 @@ func TestParseStruct(t *testing.T) {
 				IsExported: true,
 				IsPointer:  false,
 			},
+			{
+				Name:       "Group",
+				Type:       "string",
+				Tag:        `json:"group" openapi:"required,default=user" openapiEnum:"admin,manager,user"`,
+				IsExported: true,
+				IsPointer:  false,
+			},
 		},
 	}}, make(map[string]string))
 
@@ -193,9 +200,12 @@ func TestParseStruct(t *testing.T) {
 	require.NotEqual(t, "", s.Ref)
 
 	user := doc.Components.Schemas["User"]
-	require.Equal(t, 2, len(user.Properties))
+	require.Equal(t, 3, len(user.Properties))
 	require.Equal(t, "uuid", user.Properties["id"].Format)
-	require.Equal(t, []string{"id"}, user.Required)
+	require.Equal(t, []string{"id", "group"}, user.Required)
+
+	require.Equal(t, []string{"admin", "manager", "user"}, user.Properties["group"].Enum)
+	require.Equal(t, "user", user.Properties["group"].Default)
 
 	s, err = parser.parseStruct("[]User", []string{})
 	require.Nil(t, err)

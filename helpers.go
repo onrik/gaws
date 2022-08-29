@@ -35,11 +35,18 @@ func getTag(s, tag string) string {
 
 func getParamsFromTag(s string) (map[string]string, error) {
 	t := reflect.StructTag(strings.Trim(s, "`"))
-	o := t.Get("openapi")
-	if o == "" {
-		return nil, nil
+	params, err := parseParams(t.Get("openapi"))
+	if err != nil {
+		return nil, err
 	}
-	return parseParams(o)
+
+	params["description"] = t.Get("openapiDesc")
+	params["enum"] = t.Get("openapiEnum")
+	if params["example"] == "" {
+		params["example"] = t.Get("openapiExample")
+	}
+
+	return params, nil
 }
 
 func parseParams(str string) (map[string]string, error) {

@@ -370,6 +370,15 @@ func (p *Parser) parseStruct(s string, stack []string) (Schema, error) {
 		if params["example"] != "" {
 			property.Example = params["example"]
 		}
+		if params["description"] != "" {
+			property.Example = params["description"]
+		}
+		if params["default"] != "" {
+			property.Default = params["default"]
+		}
+		if params["enum"] != "" {
+			property.Enum = strings.Split(params["enum"], ",")
+		}
 		if _, ok := params["required"]; ok {
 			schema.Required = append(schema.Required, name)
 		}

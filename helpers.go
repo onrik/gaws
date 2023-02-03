@@ -136,7 +136,7 @@ func getPkg(name string) string {
 }
 
 func addPkg(pkg, name string) string {
-	if pkg == "" || strings.HasPrefix(name, pkg) {
+	if pkg == "" || strings.HasPrefix(name, pkg) || strings.Contains(name, ".") {
 		return name
 	}
 

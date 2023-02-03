@@ -72,4 +72,5 @@ func TestAddPkg(t *testing.T) {
 	require.Equal(t, "test", addPkg("", "test"))
 	require.Equal(t, "foo.bar", addPkg("foo", "bar"))
 	require.Equal(t, "test.bar", addPkg("test", "test.bar"))
+	require.Equal(t, "test.bar", addPkg("foo", "test.bar"))
 }

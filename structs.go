@@ -202,7 +202,7 @@ func getType(e ast.Expr) string {
 
 func checkIsAlias(e ast.Expr) string {
 	switch e.(type) {
-	case *ast.SelectorExpr, *ast.ArrayType:
+	case *ast.SelectorExpr, *ast.ArrayType, *ast.Ident:
 		return getType(e)
 	default:
 		return ""

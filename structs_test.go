@@ -10,7 +10,7 @@ func TestParseStructs(t *testing.T) {
 	p, err := parseStructs("", "./tests/", true)
 
 	require.Nil(t, err)
-	require.Equal(t, 46, len(p.structs))
+	require.Equal(t, 58, len(p.structs))
 
 	s := structByName(p.structs, "User")
 	require.NotNil(t, s)

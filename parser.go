@@ -352,18 +352,21 @@ func (p *Parser) parseStruct(s string, stack []string) (Schema, error) {
 			name = tag
 		}
 
-		property, err := p.typeToProperty(getPkg(s), st.Fields[i].Type, stack)
-		if err != nil {
-			return schema, err
-		}
-
 		params, err := getParamsFromTag(st.Fields[i].Tag)
 		if err != nil {
 			return schema, err
 		}
-		if params["type"] != "" {
-			property.Type = params["type"]
+
+		property := Property{
+			Type: params["type"],
 		}
+		if property.Type == "" {
+			property, err = p.typeToProperty(getPkg(s), st.Fields[i].Type, stack)
+			if err != nil {
+				return schema, err
+			}
+		}
+
 		if params["format"] != "" {
 			property.Format = params["format"]
 		}

@@ -453,6 +453,9 @@ func (p *Parser) typeToProperty(pkg, t string, stack []string) (property Propert
 
 		}
 		property.Items.Ref = prop.Ref
+		if property.Items.Ref != "" {
+			property.Items.Type = ""
+		}
 
 		return property, nil
 	}
@@ -462,8 +465,10 @@ func (p *Parser) typeToProperty(pkg, t string, stack []string) (property Propert
 	if err != nil {
 		return property, err
 	}
-	property.Type = "object"
 	property.Ref = schema.Ref
+	if property.Ref == "" {
+		property.Type = "object"
+	}
 
 	property.Properties = schema.Properties
 

@@ -23,6 +23,7 @@ func main() {
 		descriptions string
 		server       string
 		dir          string
+		skipDirs     string
 		indent       int
 	)
 
@@ -31,6 +32,7 @@ func main() {
 	flag.StringVar(&descriptions, "d", "OpenAPI", "Docs description")
 	flag.StringVar(&server, "s", "https://localhost:8000", "API server url")
 	flag.StringVar(&dir, "path", "", "Path with go files")
+	flag.StringVar(&skipDirs, "skip", "", "paths to skipping")
 	flag.IntVar(&indent, "indent", 2, "Yaml indentation")
 	flag.Parse()
 
@@ -40,7 +42,7 @@ func main() {
 		return
 	}
 
-	paths, err := getPaths(path)
+	paths, err := getPaths(path, skipDirs)
 	if err != nil {
 		log.Println(err)
 		return
@@ -100,7 +102,7 @@ func main() {
 	}
 }
 
-func getPaths(dir string) ([]string, error) {
+func getPaths(dir, skip string) ([]string, error) {
 	files, err := ioutil.ReadDir(dir)
 	if err != nil {
 		return nil, err
@@ -108,15 +110,20 @@ func getPaths(dir string) ([]string, error) {
 
 	paths := []string{dir}
 	for i := range files {
-		if files[i].IsDir() {
-			p := filepath.Join(dir, files[i].Name())
-			pp, err := getPaths(p)
-			if err != nil {
-				return nil, err
-			}
-
-			paths = append(paths, pp...)
+		if !files[i].IsDir() {
+			continue
 		}
+
+		p := filepath.Join(dir, files[i].Name())
+		if skip != "" && strings.Contains(skip, p) {
+			continue
+		}
+		pp, err := getPaths(p, skip)
+		if err != nil {
+			return nil, err
+		}
+
+		paths = append(paths, pp...)
 	}
 
 	return paths, nil

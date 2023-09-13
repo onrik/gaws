@@ -19,7 +19,9 @@ type StructField struct {
 	IsExported bool
 	IsPointer  bool
 }
+
 type Struct struct {
+	Pkg    string
 	Name   string
 	Origin string
 	Fields []StructField
@@ -67,7 +69,7 @@ func (p *structsParser) parse(path string) error {
 					renamedImports[name][pkg] = true
 				}
 			}
-			ast.Inspect(f, p.inspectFile)
+			ast.Inspect(f, p.inspectFile(pkg.Name))
 		}
 	}
 
@@ -89,13 +91,13 @@ func (p *structsParser) parse(path string) error {
 			return err
 		}
 
-		for name, i := range pkgList[0].Imports {
-			if len(i.GoFiles) == 0 {
+		for name, pkg := range pkgList[0].Imports {
+			if len(pkg.GoFiles) == 0 {
 				continue
 			}
 
 			names := []string{}
-			pkgPath, _ := filepath.Split(i.GoFiles[0])
+			pkgPath, _ := filepath.Split(pkg.GoFiles[0])
 			if renamed := renamedImports[name]; renamed != nil {
 				for n := range renamed {
 					names = append(names, n)
@@ -126,57 +128,61 @@ func (p *structsParser) parse(path string) error {
 	return nil
 }
 
-func (p *structsParser) inspectFile(node ast.Node) bool {
-	t, ok := node.(*ast.TypeSpec)
-	if !ok {
-		return true
-	}
-	if !t.Name.IsExported() && p.prefix != "" {
-		return true
-	}
+func (p *structsParser) inspectFile(pkgName string) func(node ast.Node) bool {
+	return func(node ast.Node) bool {
+		t, ok := node.(*ast.TypeSpec)
+		if !ok {
+			return true
+		}
+		if !t.Name.IsExported() && p.prefix != "" {
+			return true
+		}
 
-	if alias := checkIsAlias(t.Type); alias != "" {
+		if alias := checkIsAlias(t.Type); alias != "" {
+			p.structs = append(p.structs, Struct{
+				Pkg:    pkgName,
+				Name:   t.Name.Name,
+				Origin: alias,
+			})
+			return true
+		}
+
+		s, ok := t.Type.(*ast.StructType)
+		if !ok {
+			return true
+		}
+
+		fields := []StructField{}
+		for _, field := range s.Fields.List {
+			f := StructField{}
+			if len(field.Names) > 0 {
+				f.Name = field.Names[0].Name
+				f.IsExported = field.Names[0].IsExported()
+
+			}
+			if field.Tag != nil {
+				f.Tag = field.Tag.Value
+			}
+			if !f.IsExported {
+				continue
+			}
+			f.Type = getType(field.Type)
+			f.IsPointer = strings.HasPrefix(f.Type, "*")
+			if f.Type == "" {
+				continue
+			}
+
+			fields = append(fields, f)
+		}
+
 		p.structs = append(p.structs, Struct{
+			Pkg:    pkgName,
 			Name:   t.Name.Name,
-			Origin: alias,
+			Fields: fields,
 		})
+
 		return true
 	}
-
-	s, ok := t.Type.(*ast.StructType)
-	if !ok {
-		return true
-	}
-
-	fields := []StructField{}
-	for _, field := range s.Fields.List {
-		f := StructField{}
-		if len(field.Names) > 0 {
-			f.Name = field.Names[0].Name
-			f.IsExported = field.Names[0].IsExported()
-
-		}
-		if field.Tag != nil {
-			f.Tag = field.Tag.Value
-		}
-		if !f.IsExported {
-			continue
-		}
-		f.Type = getType(field.Type)
-		f.IsPointer = strings.HasPrefix(f.Type, "*")
-		if f.Type == "" {
-			continue
-		}
-
-		fields = append(fields, f)
-	}
-
-	p.structs = append(p.structs, Struct{
-		Name:   t.Name.Name,
-		Fields: fields,
-	})
-
-	return true
 }
 
 func getType(e ast.Expr) string {

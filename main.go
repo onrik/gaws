@@ -5,13 +5,16 @@ import (
 	"fmt"
 	"go/parser"
 	"go/token"
-	"io/ioutil"
 	"log"
 	"os"
 	"path/filepath"
 	"strings"
 
 	"gopkg.in/yaml.v3"
+)
+
+var (
+	debug = false
 )
 
 func main() {
@@ -34,6 +37,7 @@ func main() {
 	flag.StringVar(&dir, "path", "", "Path with go files")
 	flag.StringVar(&skipDirs, "skip", "", "paths to skipping")
 	flag.IntVar(&indent, "indent", 2, "Yaml indentation")
+	flag.BoolVar(&debug, "debug", false, "enable debug")
 	flag.Parse()
 
 	path, err := filepath.Abs(dir)
@@ -103,7 +107,7 @@ func main() {
 }
 
 func getPaths(dir, skip string) ([]string, error) {
-	files, err := ioutil.ReadDir(dir)
+	files, err := os.ReadDir(dir)
 	if err != nil {
 		return nil, err
 	}

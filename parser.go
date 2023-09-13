@@ -309,18 +309,7 @@ func (p *Parser) parseSchema(s string) (Content, error) {
 
 // parseStruct
 func (p *Parser) parseStruct(s string, stack []string) (Schema, error) {
-	var schema Schema
-	if _, ok := p.doc.Components.Schemas[s]; ok {
-		return Schema{Ref: fmt.Sprintf("#/components/schemas/%s", s)}, nil
-	}
-
-	for i := range stack {
-		if stack[i] == s {
-			return Schema{Ref: fmt.Sprintf("#/components/schemas/%s", s)}, nil
-		}
-	}
-
-	schema = Schema{
+	schema := Schema{
 		Properties: map[string]Property{},
 	}
 
@@ -335,11 +324,22 @@ func (p *Parser) parseStruct(s string, stack []string) (Schema, error) {
 		return schema, nil
 	}
 
-	stack = append(stack, s)
 	st := p.structByName(s)
 	if st == nil {
 		return schema, fmt.Errorf("unknown type: %s", s)
 	}
+
+	if _, ok := p.doc.Components.Schemas[s]; ok {
+		return Schema{Ref: fmt.Sprintf("#/components/schemas/%s.%s", st.Pkg, s)}, nil
+	}
+
+	for i := range stack {
+		if stack[i] == s {
+			return Schema{Ref: fmt.Sprintf("#/components/schemas/%s.%s", st.Pkg, s)}, nil
+		}
+	}
+
+	stack = append(stack, s)
 
 	schema.Type = "object"
 	for i := range st.Fields {
@@ -389,6 +389,9 @@ func (p *Parser) parseStruct(s string, stack []string) (Schema, error) {
 		schema.Properties[name] = property
 	}
 
+	if st.Pkg != "" {
+		s = fmt.Sprintf("%s.%s", st.Pkg, s)
+	}
 	p.doc.Components.Schemas[s] = schema
 
 	return Schema{

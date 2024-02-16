@@ -10,7 +10,7 @@ func TestParseStructs(t *testing.T) {
 	p, err := parseStructs("", "./tests/", true)
 
 	require.Nil(t, err)
-	require.Equal(t, 58, len(p.structs))
+	require.Equal(t, 61, len(p.structs))
 
 	s := structByName(p.structs, "User")
 	require.NotNil(t, s)
@@ -38,6 +38,22 @@ func TestParseStructs(t *testing.T) {
 	require.Equal(t, 2, len(s.Fields))
 	require.Equal(t, "Data", s.Fields[1].Name)
 	require.Equal(t, "json3.RawMessage", s.Fields[1].Type)
+
+	s = structByName(p.structs, "User4")
+	require.NotNil(t, s)
+	require.Equal(t, 4, len(s.Fields))
+	require.Equal(t, "Groups", s.Fields[3].Name)
+	require.Equal(t, "[]User4VirtGroups", s.Fields[3].Type)
+
+	s = structByName(p.structs, "User4VirtGroups")
+	require.NotNil(t, s)
+	require.Equal(t, 3, len(s.Fields))
+	require.Equal(t, "Admin", s.Fields[2].Name)
+	require.Equal(t, "*User4VirtGroupsVirtAdmin", s.Fields[2].Type)
+
+	s = structByName(p.structs, "User4VirtGroupsVirtAdmin")
+	require.NotNil(t, s)
+	require.Equal(t, 1, len(s.Fields))
 
 	require.NotNil(t, structByName(p.structs, "json2.RawMessage"))
 	require.NotNil(t, structByName(p.structs, "json3.RawMessage"))

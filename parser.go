@@ -374,7 +374,7 @@ func (p *Parser) parseStruct(s string, stack []string) (Schema, error) {
 			property.Example = params["example"]
 		}
 		if params["description"] != "" {
-			property.Example = params["description"]
+			property.Description = params["description"]
 		}
 		if params["default"] != "" {
 			property.Default = params["default"]

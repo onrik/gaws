@@ -18,6 +18,8 @@ type Property struct {
 }
 
 type Schema struct {
+	// service field for deduplication
+	importPath string              `yaml:"-"`
 	Type       string              `yaml:"type,omitempty"`
 	Format     string              `yaml:"format,omitempty"`
 	Ref        string              `yaml:"$ref,omitempty"`
@@ -27,8 +29,8 @@ type Schema struct {
 }
 
 type Content struct {
-	Schema  Schema `yaml:"schema,omitempty"`
-	Example string `yaml:"example,omitempty"`
+	Schema  *Schema `yaml:"schema,omitempty"`
+	Example string  `yaml:"example,omitempty"`
 }
 
 type Parameter struct {
@@ -67,7 +69,7 @@ type Path map[string]Endpoint
 
 type Component struct {
 	SecuritySchemes map[string]SecurityScheme `yaml:"securitySchemes,omitempty"`
-	Schemas         map[string]Schema         `yaml:"schemas,omitempty"`
+	Schemas         map[string]*Schema        `yaml:"schemas,omitempty"`
 }
 
 type Doc struct {

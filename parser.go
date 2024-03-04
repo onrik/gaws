@@ -47,20 +47,18 @@ var (
 )
 
 type Parser struct {
-	structs []Struct
+	structs *structsParser
 	doc     *Doc
-	origins map[string]string
 }
 
-func NewParser(doc *Doc, structs []Struct, origins map[string]string) *Parser {
+func NewParser(doc *Doc, structs *structsParser) *Parser {
 	return &Parser{
 		structs: structs,
 		doc:     doc,
-		origins: origins,
 	}
 }
 
-func (p *Parser) parseComment(comment string) (err error) {
+func (p *Parser) parseComment(comment string, file File) (err error) {
 	splits := strings.Split(comment, "\n")
 	paths := map[string]map[string]bool{}
 	endpoint := Endpoint{
@@ -100,7 +98,7 @@ func (p *Parser) parseComment(comment string) (err error) {
 		}
 
 		if strings.HasPrefix(l, requestPrefix) {
-			request, err := p.parseRequest(l)
+			request, err := p.parseRequest(l, file)
 			if err != nil {
 				return wrapError(err, l)
 			}
@@ -108,7 +106,7 @@ func (p *Parser) parseComment(comment string) (err error) {
 		}
 
 		if strings.HasPrefix(l, responsePrefix) {
-			status, contentType, content, err := p.parseResponse(l)
+			status, contentType, content, err := p.parseResponse(l, file)
 			if err != nil {
 				return wrapError(err, l)
 			}
@@ -211,14 +209,14 @@ func (p *Parser) parseParam(s string) (Parameter, error) {
 }
 
 // parseRequest @openapiRequest application/json {"foo": "bar"}
-func (p *Parser) parseRequest(s string) (body RequestBody, err error) {
+func (p *Parser) parseRequest(s string, file File) (body RequestBody, err error) {
 	s = strings.TrimPrefix(s, requestPrefix)
 	splits := strings.SplitN(s, " ", 2)
 
 	contentType := trim(splits[0])
 	request := trim(getStr(splits, 1))
 
-	content, err := p.parseSchema(request)
+	content, err := p.parseSchema(request, file)
 	if err != nil {
 		return body, err
 	}
@@ -230,7 +228,7 @@ func (p *Parser) parseRequest(s string) (body RequestBody, err error) {
 }
 
 // parseResponse @openapiResponse 200 application/json {"foo": "bar"}
-func (p *Parser) parseResponse(s string) (status string, contentType string, content Content, err error) {
+func (p *Parser) parseResponse(s string, file File) (status string, contentType string, content Content, err error) {
 	s = strings.TrimPrefix(s, responsePrefix)
 	splits := strings.SplitN(s, " ", 3)
 
@@ -239,12 +237,12 @@ func (p *Parser) parseResponse(s string) (status string, contentType string, con
 	response := trim(getStr(splits, 2))
 
 	if contentType == "application/octet-stream" {
-		content.Schema = Schema{
+		content.Schema = &Schema{
 			Type:   "string",
 			Format: "binary",
 		}
 	} else {
-		content, err = p.parseSchema(response)
+		content, err = p.parseSchema(response, file)
 		if err != nil {
 			return status, contentType, content, err
 		}
@@ -272,7 +270,7 @@ func (p *Parser) parseSecurity(commentLine string) map[string][]string {
 }
 
 // parseSchema {"foo": "bar"}
-func (p *Parser) parseSchema(s string) (Content, error) {
+func (p *Parser) parseSchema(s string, file File) (Content, error) {
 	content := Content{}
 	if strings.HasPrefix(s, "{") {
 		if json.Valid([]byte(s)) {
@@ -285,10 +283,11 @@ func (p *Parser) parseSchema(s string) (Content, error) {
 			return content, err
 		}
 
+		content.Schema = &Schema{}
 		content.Schema.Type = "object"
 		content.Schema.Properties = map[string]Property{}
 		for n, t := range fields {
-			property, err := p.typeToProperty("", t, []string{})
+			property, err := p.typeToProperty("", t, file)
 			if err != nil {
 				return content, err
 			}
@@ -298,7 +297,7 @@ func (p *Parser) parseSchema(s string) (Content, error) {
 		return content, nil
 	}
 
-	schema, err := p.parseStruct(s, []string{})
+	schema, err := p.parseStruct(s, file)
 	if err != nil {
 		return content, err
 	}
@@ -307,40 +306,79 @@ func (p *Parser) parseSchema(s string) (Content, error) {
 	return content, nil
 }
 
+// parseAlias parses given type and returns original type name and true if type is alias
+func (p *Parser) parseAlias(s string, file File) (string, bool, error) {
+	// alias can not have package
+	if pkg := getPkg(s); pkg != "" {
+		return "", false, nil
+	}
+
+	structs, err := p.structs.parse(file.Pkg)
+	if err != nil {
+		return "", false, err
+	}
+
+	st, ok := structs[s]
+	if !ok {
+		return "", false, fmt.Errorf("type with name '%s' was not found in package '%s' with import path '%s'", s, file.Pkg.FSPath, file.Pkg.ImportPath)
+	}
+
+	if st.Origin != "" {
+		return st.Origin, true, nil
+	}
+
+	return "", false, nil
+}
+
 // parseStruct
-func (p *Parser) parseStruct(s string, stack []string) (Schema, error) {
-	schema := Schema{
+func (p *Parser) parseStruct(s string, file File) (*Schema, error) {
+	schema := &Schema{
 		Properties: map[string]Property{},
 	}
 
 	if strings.HasPrefix(s, "[]") {
-		arraySchema, err := p.parseStruct(strings.TrimPrefix(s, "[]"), stack)
+		arraySchema, err := p.parseStruct(strings.TrimPrefix(s, "[]"), file)
 		if err != nil {
-			return schema, err
+			return nil, err
 		}
 		schema.Type = "array"
 		schema.Properties = nil
-		schema.Items = &arraySchema
+		schema.Items = arraySchema
 		return schema, nil
 	}
 
-	st := p.structByName(s)
-	if st == nil {
-		return schema, fmt.Errorf("unknown type: %s", s)
-	}
-
-	if _, ok := p.doc.Components.Schemas[s]; ok {
-		return Schema{Ref: fmt.Sprintf("#/components/schemas/%s.%s", st.Pkg, s)}, nil
-	}
-
-	for i := range stack {
-		if stack[i] == s {
-			return Schema{Ref: fmt.Sprintf("#/components/schemas/%s.%s", st.Pkg, s)}, nil
+	pkg, name := splitName(s)
+	if pkg != "" {
+		fileWithImportedType, err := file.ParseImport(pkg, name)
+		if err != nil {
+			return nil, err
 		}
+
+		return p.parseStruct(name, fileWithImportedType)
 	}
 
-	stack = append(stack, s)
+	structs, err := p.structs.parse(file.Pkg)
+	if err != nil {
+		return nil, err
+	}
 
+	st, ok := structs[name]
+	if !ok {
+		return nil, fmt.Errorf("struct type with name '%s' was not found in package '%s' with import path '%s'", name, file.Pkg.FSPath, file.Pkg.ImportPath)
+	}
+
+	s, ok = getSchemaNameForStruct(p.doc.Components.Schemas, s, st)
+	if ok {
+		return &Schema{
+			importPath: st.Pkg,
+			Ref:        fmt.Sprintf("#/components/schemas/%s", s),
+		}, nil
+	}
+
+	// add struct schema to schemas before full parsing to prevent loop calls parseStruct -> typeToProperty -> parseStruct
+	p.doc.Components.Schemas[s] = schema
+
+	schema.importPath = st.Pkg
 	schema.Type = "object"
 	for i := range st.Fields {
 		name := st.Fields[i].Name
@@ -354,16 +392,16 @@ func (p *Parser) parseStruct(s string, stack []string) (Schema, error) {
 
 		params, err := getParamsFromTag(st.Fields[i].Tag)
 		if err != nil {
-			return schema, err
+			return nil, err
 		}
 
 		property := Property{
 			Type: params["type"],
 		}
 		if property.Type == "" {
-			property, err = p.typeToProperty(getPkg(s), st.Fields[i].Type, stack)
+			property, err = p.typeToProperty(getPkg(s), st.Fields[i].Type, file)
 			if err != nil {
-				return schema, err
+				return nil, err
 			}
 		}
 
@@ -389,27 +427,13 @@ func (p *Parser) parseStruct(s string, stack []string) (Schema, error) {
 		schema.Properties[name] = property
 	}
 
-	if st.Pkg != "" {
-		s = fmt.Sprintf("%s.%s", st.Pkg, s)
-	}
-	p.doc.Components.Schemas[s] = schema
-
-	return Schema{
-		Ref: fmt.Sprintf("#/components/schemas/%s", s),
+	return &Schema{
+		importPath: st.Pkg,
+		Ref:        fmt.Sprintf("#/components/schemas/%s", s),
 	}, nil
 }
 
-func (p *Parser) structByName(name string) *Struct {
-	for i := range p.structs {
-		if p.structs[i].Name == name {
-			return &p.structs[i]
-		}
-	}
-
-	return nil
-}
-
-func (p *Parser) typeToProperty(pkg, t string, stack []string) (property Property, err error) {
+func (p *Parser) typeToProperty(pkg, t string, file File) (property Property, err error) {
 	t = strings.TrimPrefix(t, "*")
 
 	if isBaseType(t) {
@@ -429,15 +453,9 @@ func (p *Parser) typeToProperty(pkg, t string, stack []string) (property Propert
 		return
 	}
 
-	// Redeclarated type
-	ot, hasOrigin := p.origin(t)
-	if hasOrigin {
-		return p.typeToProperty(pkg, ot, stack)
-	}
-
 	if strings.HasPrefix(t, "[]") {
 		property.Type = "array"
-		prop, err := p.typeToProperty(pkg, strings.TrimPrefix(t, "[]"), stack)
+		prop, err := p.typeToProperty(pkg, strings.TrimPrefix(t, "[]"), file)
 		if err != nil {
 			return property, err
 		}
@@ -463,8 +481,19 @@ func (p *Parser) typeToProperty(pkg, t string, stack []string) (property Propert
 		return property, nil
 	}
 
+	// Redeclarated type
+	if pkg == "" {
+		ot, ok, err := p.parseAlias(t, file)
+		if err != nil {
+			return Property{}, err
+		}
+		if ok {
+			return p.typeToProperty(pkg, ot, file)
+		}
+	}
+
 	// Is struct
-	schema, err := p.parseStruct(addPkg(pkg, t), stack)
+	schema, err := p.parseStruct(addPkg(pkg, t), file)
 	if err != nil {
 		return property, err
 	}
@@ -504,15 +533,6 @@ func parseDesc(s string) string {
 
 func isBaseType(t string) bool {
 	return typesMap[t] != ""
-}
-
-// origin return origin of redeclarated type and true flag
-func (p *Parser) origin(t string) (string, bool) {
-	ot := p.origins[t]
-	if ot != "" && t != ot {
-		return ot, true
-	}
-	return t, false
 }
 
 func isTime(t string) bool {

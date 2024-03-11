@@ -5,11 +5,8 @@ import (
 	"go/parser"
 	"go/token"
 	"log"
-	"path/filepath"
 	"reflect"
 	"strings"
-
-	"golang.org/x/tools/go/packages"
 )
 
 type StructField struct {
@@ -27,123 +24,62 @@ type Struct struct {
 	Fields []StructField
 }
 
-func parseStructs(prefix, path string, deep bool) (structsParser, error) {
-	p := structsParser{
-		prefix:    prefix,
-		recursive: deep,
-		origins:   make(map[string]string),
+func newStructsParser() *structsParser {
+	return &structsParser{
+		structs: map[string]map[string]Struct{},
 	}
-
-	err := p.parse(path)
-
-	return p, err
 }
 
 type structsParser struct {
-	prefix    string
-	recursive bool
-	structs   []Struct
-	origins   map[string]string
+	// importName -> local struct type name -> struct definition
+	// fo example "github.com/onrik/gaws" -> "Type" -> Struct{}
+	structs map[string]map[string]Struct
 }
 
-func (p *structsParser) parse(path string) error {
-	pkgs, err := parser.ParseDir(token.NewFileSet(), path, nil, parser.ParseComments)
-	if err != nil {
-		return err
+// parse parses structs from given go package
+// pkg - Package to parse
+func (p *structsParser) parse(pkg Package) (map[string]Struct, error) {
+	if resp, ok := p.structs[pkg.ImportPath]; ok {
+		return resp, nil
 	}
 
-	renamedImports := map[string]map[string]bool{}
-	for _, pkg := range pkgs {
-		for name, f := range pkg.Files {
+	resp := map[string]Struct{}
+	p.structs[pkg.ImportPath] = resp
+
+	pkgs, err := parser.ParseDir(token.NewFileSet(), pkg.FSPath, nil, parser.ParseComments)
+	if err != nil {
+		return nil, err
+	}
+
+	for _, parsedPkg := range pkgs {
+		for name, f := range parsedPkg.Files {
 			if strings.HasSuffix(name, "_test.go") {
 				continue
 			}
-			for _, i := range f.Imports {
-				if i.Name != nil {
-					name := strings.Trim(i.Path.Value, `"`)
-					if renamedImports[name] == nil {
-						renamedImports[name] = map[string]bool{}
-					}
-					renamedImports[name][i.Name.Name] = true
-					_, pkg := filepath.Split(name)
-					renamedImports[name][pkg] = true
-				}
-			}
-			ast.Inspect(f, p.inspectFile(pkg.Name))
+			ast.Inspect(f, p.inspectFile(pkg.ImportPath))
 		}
 	}
 
-	if p.prefix != "" {
-		// Add prefix for package structs, for example Time -> time.Time
-		for i := range p.structs {
-			p.structs[i].Name = p.prefix + "." + p.structs[i].Name
-		}
-	}
-
-	if p.recursive {
-		config := &packages.Config{
-			Mode: packages.LoadAllSyntax, // nolint: staticcheck
-			Dir:  path,
-		}
-
-		pkgList, err := packages.Load(config)
-		if err != nil {
-			return err
-		}
-
-		for name, pkg := range pkgList[0].Imports {
-			if len(pkg.GoFiles) == 0 {
-				continue
-			}
-
-			names := []string{}
-			pkgPath, _ := filepath.Split(pkg.GoFiles[0])
-			if renamed := renamedImports[name]; renamed != nil {
-				for n := range renamed {
-					names = append(names, n)
-				}
-			} else {
-				_, name = filepath.Split(name)
-				names = append(names, name)
-			}
-
-			for i := range names {
-				pkg, err := parseStructs(names[i], pkgPath, false)
-				if err != nil {
-					return err
-				}
-				p.structs = append(p.structs, pkg.structs...)
-
-			}
-
-			// For redeclarated types
-			for i := range p.structs {
-				if p.structs[i].Origin != "" {
-					p.origins[p.structs[i].Name] = p.structs[i].Origin
-				}
-			}
-		}
-	}
-
-	return nil
+	return resp, nil
 }
 
-func (p *structsParser) inspectFile(pkgName string) func(node ast.Node) bool {
+func (p *structsParser) inspectFile(importPath string) func(node ast.Node) bool {
 	return func(node ast.Node) bool {
 		t, ok := node.(*ast.TypeSpec)
 		if !ok {
 			return true
 		}
-		if !t.Name.IsExported() && p.prefix != "" {
+		// skip unexported structs from underlying packages
+		if !t.Name.IsExported() && importPath != "" {
 			return true
 		}
 
 		if alias := checkIsAlias(t.Type); alias != "" {
-			p.structs = append(p.structs, Struct{
-				Pkg:    pkgName,
+			p.structs[importPath][t.Name.Name] = Struct{
+				Pkg:    importPath,
 				Name:   t.Name.Name,
 				Origin: alias,
-			})
+			}
 			return true
 		}
 
@@ -158,7 +94,6 @@ func (p *structsParser) inspectFile(pkgName string) func(node ast.Node) bool {
 			if len(field.Names) > 0 {
 				f.Name = field.Names[0].Name
 				f.IsExported = field.Names[0].IsExported()
-
 			}
 			if field.Tag != nil {
 				f.Tag = field.Tag.Value
@@ -175,11 +110,11 @@ func (p *structsParser) inspectFile(pkgName string) func(node ast.Node) bool {
 			fields = append(fields, f)
 		}
 
-		p.structs = append(p.structs, Struct{
-			Pkg:    pkgName,
+		p.structs[importPath][t.Name.Name] = Struct{
+			Pkg:    importPath,
 			Name:   t.Name.Name,
 			Fields: fields,
-		})
+		}
 
 		return true
 	}

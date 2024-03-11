@@ -135,6 +135,15 @@ func getPkg(name string) string {
 	return strings.SplitN(name, ".", 3)[0]
 }
 
+func splitName(name string) (string, string) {
+	first, second, found := strings.Cut(name, ".")
+	if found {
+		return first, second
+	}
+
+	return "", first
+}
+
 func addPkg(pkg, name string) string {
 	if pkg == "" || strings.HasPrefix(name, pkg) || strings.Contains(name, ".") {
 		return name
@@ -143,12 +152,46 @@ func addPkg(pkg, name string) string {
 	return pkg + "." + name
 }
 
-func structByName(structs []Struct, name string) *Struct {
-	for i := range structs {
-		if structs[i].Name == name {
-			return &structs[i]
+// getSchemaNameForStruct searches in schemas struct with given name
+//
+//	If given name already used by another struct then getSchemaForStruct tries to construct unique
+//	name for given struct
+//	Returns new unique name for given struct which should be used on struct insert into schemas
+func getSchemaNameForStruct(schemas map[string]*Schema, name string, st Struct) (string, bool) {
+	existingSchema, ok := schemas[name]
+	if ok {
+		if existingSchema.importPath == st.Pkg {
+			return name, true
+		} else if st.Pkg != "" {
+			// dealing with duplicates from different packages like
+			//
+			// file1.go
+			//    "github.com/onrik/gaws/tests/nested"
+			//
+			//    nested.Type{}
+			//
+			// file2.go
+			//    "github.com/onrik/gaws/tests/nested/nested"
+			//
+			//     nested.Type{}
+			//
+			pkgChunks := strings.Split(st.Pkg, "/")
+			// Trying to find unique identifier for our schema
+			// For example for struct Type in package "github.com/onrik/gaws/tests/nested" we will try
+			// Type -> nested.Type -> tests.nested.Type -> etc
+			for i := len(pkgChunks) - 1; i >= 0; i-- {
+				name = fmt.Sprintf("%s.%s", pkgChunks[i], name)
+				existingSchema, ok = schemas[name]
+				if ok {
+					if existingSchema.importPath == st.Pkg {
+						return name, true
+					}
+				} else {
+					break
+				}
+			}
 		}
 	}
 
-	return nil
+	return name, false
 }

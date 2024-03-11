@@ -61,28 +61,22 @@ func main() {
 		},
 		Servers:    []Server{{URL: server}},
 		Paths:      map[string]Path{},
-		Components: Component{Schemas: map[string]Schema{}},
+		Components: Component{Schemas: map[string]*Schema{}},
 	}
 
 	errors := []string{}
 	for i := range paths {
-		ps, err := parseStructs("", paths[i], true)
-		if err != nil {
-			log.Printf("Parse structs error: %s\n", err)
-			return
-		}
-
 		pkgs, err := parser.ParseDir(token.NewFileSet(), paths[i], nil, parser.ParseComments)
 		if err != nil {
 			log.Printf("Parse dir error: %s\n", err)
 			return
 		}
 
-		p := NewParser(&doc, ps.structs, ps.origins)
+		p := NewParser(&doc, newStructsParser())
 		for _, pkg := range pkgs {
 			for filePath, f := range pkg.Files {
 				for _, c := range f.Comments {
-					err = p.parseComment(c.Text())
+					err = p.parseComment(c.Text(), NewFile(f, filepath.Dir(filePath), ""))
 					if err != nil {
 						errors = append(errors, fmt.Sprintf("%s - %s", err.Error(), strings.TrimPrefix(filePath, path+"/")))
 					}

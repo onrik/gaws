@@ -13,7 +13,7 @@ func TestParseStructs(t *testing.T) {
 	st, err := p.parse(Package{FSPath: "./tests/", ImportPath: ""})
 	require.NoError(t, err)
 	require.Nil(t, err)
-	require.Equal(t, 12, len(st))
+	require.Equal(t, 14, len(st))
 
 	s, ok := st["User"]
 	require.True(t, ok)
@@ -69,26 +69,4 @@ func TestParseStructs(t *testing.T) {
 
 	// parsed package should be cached
 	require.NotNil(t, p.structs["encoding/json"]["RawMessage"])
-
-	//s = structByName(p.structs, "NestedAlias", pkgs["tests"].Files["tests/alias_structs.go"])
-	//require.NotNil(t, s)
-	//require.Equal(t, "", s.Pkg)
-	//require.Equal(t, []StructField(nil), s.Fields)
-	//require.Equal(t, "nested.NestedStruct", s.Origin)
-	//
-	//// nested struct
-	//s = structByName(p.structs, "nested.NestedStruct", pkgs["tests"].Files["tests/structs4.go"])
-	//require.NotNil(t, s)
-	//require.Equal(t, "github.com/onrik/gaws/tests/nested", s.Pkg)
-
-	// TODO: uncomment this test when deep parsing will be enabled
-	// even more nested struct with duplicate module name
-	//pkgs, err = parser.ParseDir(token.NewFileSet(), "./tests/nested", nil, parser.ParseComments)
-	//if err != nil {
-	//	require.Nil(t, err)
-	//}
-	//
-	//s = structByName(p.structs, "nested.NestedStruct", pkgs["nested"].Files["tests/nested/nested.go"])
-	//require.NotNil(t, s)
-	//require.Equal(t, "github.com/onrik/gaws/tests/nested/nested", s.Pkg)
 }

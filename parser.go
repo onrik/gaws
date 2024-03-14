@@ -287,7 +287,12 @@ func (p *Parser) parseSchema(s string, file File) (Content, error) {
 		content.Schema.Type = "object"
 		content.Schema.Properties = map[string]Property{}
 		for n, t := range fields {
-			property, err := p.typeToProperty("", t, file)
+			parsedType, err := p.parseType(t, file)
+			if err != nil {
+				return content, err
+			}
+
+			property, err := p.typeToProperty(parsedType)
 			if err != nil {
 				return content, err
 			}
@@ -297,7 +302,12 @@ func (p *Parser) parseSchema(s string, file File) (Content, error) {
 		return content, nil
 	}
 
-	schema, err := p.parseStruct(s, file)
+	parsedType, err := p.parseType(s, file)
+	if err != nil {
+		return content, err
+	}
+
+	schema, err := p.parseStruct(parsedType)
 	if err != nil {
 		return content, err
 	}
@@ -330,14 +340,20 @@ func (p *Parser) parseAlias(s string, file File) (string, bool, error) {
 	return "", false, nil
 }
 
-// parseStruct
-func (p *Parser) parseStruct(s string, file File) (*Schema, error) {
+// parseStruct parses Schema from given ParsedType
+func (p *Parser) parseStruct(t *ParsedType) (*Schema, error) {
 	schema := &Schema{
 		Properties: map[string]Property{},
 	}
 
-	if strings.HasPrefix(s, "[]") {
-		arraySchema, err := p.parseStruct(strings.TrimPrefix(s, "[]"), file)
+	switch t.Kind {
+	case arrayType, structType:
+	default:
+		return nil, fmt.Errorf("expect array or struct parsed type kind, got: %d", t.Kind)
+	}
+
+	if t.Kind == arrayType {
+		arraySchema, err := p.parseStruct(t.Nested)
 		if err != nil {
 			return nil, err
 		}
@@ -347,36 +363,26 @@ func (p *Parser) parseStruct(s string, file File) (*Schema, error) {
 		return schema, nil
 	}
 
-	pkg, name := splitName(s)
-	if pkg != "" {
-		fileWithImportedType, err := file.ParseImport(pkg, name)
-		if err != nil {
-			return nil, err
-		}
-
-		return p.parseStruct(name, fileWithImportedType)
-	}
-
-	structs, err := p.structs.parse(file.Pkg)
+	structs, err := p.structs.parse(t.File.Pkg)
 	if err != nil {
 		return nil, err
 	}
 
-	st, ok := structs[name]
+	st, ok := structs[t.Name]
 	if !ok {
-		return nil, fmt.Errorf("struct type with name '%s' was not found in package '%s' with import path '%s'", name, file.Pkg.FSPath, file.Pkg.ImportPath)
+		return nil, fmt.Errorf("struct type with name '%s' was not found in package '%s' with import path '%s'", t.Name, t.File.Pkg.FSPath, t.File.Pkg.ImportPath)
 	}
 
-	s, ok = getSchemaNameForStruct(p.doc.Components.Schemas, s, st)
+	schemaName, ok := getSchemaNameForStruct(p.doc.Components.Schemas, t.Name, st)
 	if ok {
 		return &Schema{
 			importPath: st.Pkg,
-			Ref:        fmt.Sprintf("#/components/schemas/%s", s),
+			Ref:        fmt.Sprintf("#/components/schemas/%s", schemaName),
 		}, nil
 	}
 
 	// add struct schema to schemas before full parsing to prevent loop calls parseStruct -> typeToProperty -> parseStruct
-	p.doc.Components.Schemas[s] = schema
+	p.doc.Components.Schemas[schemaName] = schema
 
 	schema.importPath = st.Pkg
 	schema.Type = "object"
@@ -399,7 +405,12 @@ func (p *Parser) parseStruct(s string, file File) (*Schema, error) {
 			Type: params["type"],
 		}
 		if property.Type == "" {
-			property, err = p.typeToProperty(getPkg(s), st.Fields[i].Type, file)
+			parsedType, err := p.parseType(st.Fields[i].Type, t.File)
+			if err != nil {
+				return nil, err
+			}
+
+			property, err = p.typeToProperty(parsedType)
 			if err != nil {
 				return nil, err
 			}
@@ -429,82 +440,148 @@ func (p *Parser) parseStruct(s string, file File) (*Schema, error) {
 
 	return &Schema{
 		importPath: st.Pkg,
-		Ref:        fmt.Sprintf("#/components/schemas/%s", s),
+		Ref:        fmt.Sprintf("#/components/schemas/%s", schemaName),
 	}, nil
 }
 
-func (p *Parser) typeToProperty(pkg, t string, file File) (property Property, err error) {
+// parseType parses given string and return ParsedType from it.
+//
+//	This function automagickally resolves pointers, types with packages and aliases.
+func (p *Parser) parseType(t string, file File) (*ParsedType, error) {
 	t = strings.TrimPrefix(t, "*")
 
-	if isBaseType(t) {
-		property.Type = typesMap[t]
-		property.Format = formatsMap[t]
-		return
-	}
 	if isTime(t) {
-		property.Type = "string"
-		property.Format = "date-time"
-		return
+		return &ParsedType{
+			Kind: timeType,
+			Name: t,
+			File: file,
+		}, nil
+	}
+
+	if isBaseType(t) {
+		return &ParsedType{
+			Kind: baseType,
+			Name: t,
+			File: file,
+		}, nil
 	}
 
 	if t == "map" {
-		property.Type = "object"
-		property.AdditionalProperties = &map[string]string{}
-		return
+		return &ParsedType{
+			Kind: mapType,
+			Name: t,
+			File: file,
+		}, nil
 	}
 
 	if strings.HasPrefix(t, "[]") {
+		nested, err := p.parseType(strings.TrimPrefix(t, "[]"), file)
+		if err != nil {
+			return nil, err
+		}
+
+		return &ParsedType{
+			Kind:   arrayType,
+			Name:   t,
+			File:   file,
+			Nested: nested,
+		}, nil
+	}
+
+	pkg, t := splitName(t)
+	if pkg != "" {
+		fileWithImportedType, err := file.ParseImport(pkg, t)
+		if err != nil {
+			return nil, err
+		}
+
+		return p.parseType(t, fileWithImportedType)
+	}
+
+	ot, ok, err := p.parseAlias(t, file)
+	if err != nil {
+		return nil, err
+	}
+	if ok {
+		return p.parseType(ot, file)
+	}
+
+	return &ParsedType{
+		Kind: structType,
+		Name: t,
+		File: file,
+	}, nil
+}
+
+func (p *Parser) mustParseType(t string, file File) *ParsedType {
+	resp, err := p.parseType(t, file)
+	if err != nil {
+		panic(err)
+	}
+
+	return resp
+}
+
+// typeToProperty constructs Property from given ParsedType
+func (p *Parser) typeToProperty(t *ParsedType) (property Property, err error) {
+	switch t.Kind {
+	case timeType:
+		property.Type = "string"
+		property.Format = "date-time"
+		return
+
+	case baseType:
+		property.Type = typesMap[t.Name]
+		property.Format = formatsMap[t.Name]
+		return
+
+	case mapType:
+		property.Type = "object"
+		property.AdditionalProperties = &map[string]string{}
+		return
+
+	case arrayType:
 		property.Type = "array"
-		prop, err := p.typeToProperty(pkg, strings.TrimPrefix(t, "[]"), file)
+		prop, err := p.typeToProperty(t.Nested)
 		if err != nil {
 			return property, err
 		}
 
 		property.Items = &Schema{
-			Type: property.Type,
+			Type: prop.Type,
 		}
 
-		property.Items.Items = prop.Items
-		property.Items.Type = prop.Type
 		if prop.Type == "object" {
 			property.Items.Properties = prop.Properties
 		}
+
 		if prop.Type == "array" {
 			property.Items.Items = prop.Items
-
 		}
+
 		property.Items.Ref = prop.Ref
 		if property.Items.Ref != "" {
 			property.Items.Type = ""
 		}
 
 		return property, nil
-	}
 
-	// Redeclarated type
-	if pkg == "" {
-		ot, ok, err := p.parseAlias(t, file)
+	case structType:
+		schema, err := p.parseStruct(t)
 		if err != nil {
-			return Property{}, err
+			return property, err
 		}
-		if ok {
-			return p.typeToProperty(pkg, ot, file)
+		property.Ref = schema.Ref
+		if property.Ref == "" {
+			property.Type = "object"
 		}
-	}
 
-	// Is struct
-	schema, err := p.parseStruct(addPkg(pkg, t), file)
-	if err != nil {
-		return property, err
-	}
-	property.Ref = schema.Ref
-	if property.Ref == "" {
-		property.Type = "object"
-	}
+		property.Properties = schema.Properties
+		return property, nil
 
-	property.Properties = schema.Properties
-
-	return property, nil
+	default:
+		return property, fmt.Errorf("unknown parsed type kind: %d", t.Kind)
+	}
 }
 
 // parseTags @openapiTags foo, bar

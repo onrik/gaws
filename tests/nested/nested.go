@@ -6,3 +6,5 @@ type NestedStruct struct {
 	ID     int
 	Nested nested.NestedStruct
 }
+
+type NestedSimpleAlias string

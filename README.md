@@ -17,12 +17,14 @@ type Group struct {
 }
 
 type User struct {
+	_         struct{}  `json:"-" openapiDesc:"User"`
 	ID        uint      `json:"id"`
 	Name      string    `json:"name"`
-	Email     string    `json:"email"`
+	Email     string    `json:"email" openapiDesc:"User's email'"`
 	IsAdmin   bool      `json:"is_admin"`
 	Groups    []Group   `json:"groups"`
 	CreatedAt time.Time `json:"created_at"`
+	Status    string    `json:"status" openapiEnum:"new confirmed deleted"`
 }
 
 type createUserRequest struct {

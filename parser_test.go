@@ -288,6 +288,15 @@ func TestParseStruct(t *testing.T) {
 
 	// even more nested struct with duplicate module name
 	require.Equal(t, "github.com/onrik/gaws/tests/nested/nested", parser.doc.Components.Schemas["nested.NestedStruct"].importPath)
+
+	// struct description
+	s, err = parser.parseStruct(&ParsedType{
+		Name: "DescriptionStruct",
+		Kind: structType,
+		File: getFile(t, "tests", "tests/description_structs.go", ""),
+	})
+	require.Nil(t, err)
+	require.Equal(t, "Test description", parser.doc.Components.Schemas["DescriptionStruct"].Description)
 }
 
 func TestTypeToProperty(t *testing.T) {

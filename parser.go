@@ -387,6 +387,16 @@ func (p *Parser) parseStruct(t *ParsedType) (*Schema, error) {
 	schema.importPath = st.Pkg
 	schema.Type = "object"
 	for i := range st.Fields {
+		params, err := getParamsFromTag(st.Fields[i].Tag)
+		if err != nil {
+			return nil, err
+		}
+
+		if st.Fields[i].IsSystem {
+			schema.Description = params["description"]
+			continue
+		}
+
 		name := st.Fields[i].Name
 		tag := getTag(st.Fields[i].Tag, "json")
 		if tag == "-" {
@@ -394,11 +404,6 @@ func (p *Parser) parseStruct(t *ParsedType) (*Schema, error) {
 		}
 		if tag != "" {
 			name = tag
-		}
-
-		params, err := getParamsFromTag(st.Fields[i].Tag)
-		if err != nil {
-			return nil, err
 		}
 
 		property := Property{

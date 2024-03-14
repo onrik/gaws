@@ -13,7 +13,7 @@ func TestParseStructs(t *testing.T) {
 	st, err := p.parse(Package{FSPath: "./tests/", ImportPath: ""})
 	require.NoError(t, err)
 	require.Nil(t, err)
-	require.Equal(t, 14, len(st))
+	require.Equal(t, 15, len(st))
 
 	s, ok := st["User"]
 	require.True(t, ok)
@@ -69,4 +69,32 @@ func TestParseStructs(t *testing.T) {
 
 	// parsed package should be cached
 	require.NotNil(t, p.structs["encoding/json"]["RawMessage"])
+
+	// parse struct description
+	f = NewFile(pkgs["tests"].Files["tests/description_structs.go"], "./tests/", "")
+	st, err = p.parse(f.Pkg)
+	require.NoError(t, err)
+	require.Equal(t, Struct{
+		Pkg:    "",
+		Name:   "DescriptionStruct",
+		Origin: "",
+		Fields: []StructField{
+			{
+				Name:       "_",
+				Type:       "",
+				Tag:        "`json:\"-\" openapiDesc:\"Test description\"`",
+				IsExported: false,
+				IsPointer:  false,
+				IsSystem:   true,
+			},
+			{
+				Name:       "ID",
+				Type:       "int",
+				Tag:        "",
+				IsExported: true,
+				IsPointer:  false,
+				IsSystem:   false,
+			},
+		},
+	}, st["DescriptionStruct"])
 }

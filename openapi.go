@@ -19,13 +19,14 @@ type Property struct {
 
 type Schema struct {
 	// service field for deduplication
-	importPath string              `yaml:"-"`
-	Type       string              `yaml:"type,omitempty"`
-	Format     string              `yaml:"format,omitempty"`
-	Ref        string              `yaml:"$ref,omitempty"`
-	Properties map[string]Property `yaml:"properties,omitempty"`
-	Required   []string            `yaml:"required,omitempty"`
-	Items      *Schema             `yaml:"items,omitempty"`
+	importPath  string              `yaml:"-"`
+	Type        string              `yaml:"type,omitempty"`
+	Format      string              `yaml:"format,omitempty"`
+	Ref         string              `yaml:"$ref,omitempty"`
+	Properties  map[string]Property `yaml:"properties,omitempty"`
+	Required    []string            `yaml:"required,omitempty"`
+	Items       *Schema             `yaml:"items,omitempty"`
+	Description string              `yaml:"description,omitempty"`
 }
 
 type Content struct {

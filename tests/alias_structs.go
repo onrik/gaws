@@ -11,3 +11,7 @@ type StructForAlias struct {
 type Alias StructForAlias
 
 type NestedAlias nested.NestedStruct
+
+type SimpleAlias string
+
+type NestedSimpleAlias nested.NestedSimpleAlias

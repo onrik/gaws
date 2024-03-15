@@ -77,10 +77,20 @@ func TestParseRequest(t *testing.T) {
 	require.True(t, e)
 	require.Equal(t, "", content.Example)
 	require.Equal(t, "", content.Schema.Type)
-	require.NotEqual(t, "", content.Schema.Ref)
+	require.Equal(t, "#/components/schemas/User", content.Schema.Ref)
+
+	// Test array of structs
+	body, err = parser.parseRequest(`@openapiRequest application/json []User`, getFile(t, "tests", "tests/structs.go", ""))
+	require.Nil(t, err)
+
+	content, e = body.Content["application/json"]
+	require.True(t, e)
+	require.Equal(t, "", content.Example)
+	require.Equal(t, "array", content.Schema.Type)
+	require.Equal(t, "#/components/schemas/User", content.Schema.Items.Ref)
 
 	// Test json schema
-	body, err = parser.parseRequest(`@openapiRequest application/json {"user": User, "id": int}`, File{})
+	body, err = parser.parseRequest(`@openapiRequest application/json {"user": User, "id": int}`, getFile(t, "tests", "tests/structs.go", ""))
 	require.Nil(t, err)
 
 	content, e = body.Content["application/json"]
@@ -88,6 +98,39 @@ func TestParseRequest(t *testing.T) {
 	require.Equal(t, "", content.Example)
 	require.Equal(t, "object", content.Schema.Type)
 	require.Equal(t, "integer", content.Schema.Properties["id"].Type)
+	require.Equal(t, "#/components/schemas/User", content.Schema.Properties["user"].Ref)
+
+	// Test json schema with array
+	body, err = parser.parseRequest(`@openapiRequest application/json {"user": []User, "id": int}`, getFile(t, "tests", "tests/structs.go", ""))
+	require.Nil(t, err)
+
+	content, e = body.Content["application/json"]
+	require.True(t, e)
+	require.Equal(t, "", content.Example)
+	require.Equal(t, "object", content.Schema.Type)
+	require.Equal(t, "array", content.Schema.Properties["user"].Type)
+	require.Equal(t, "#/components/schemas/User", content.Schema.Properties["user"].Items.Ref)
+
+	// Test json schema with nested struct
+	body, err = parser.parseRequest(`@openapiRequest application/json {"user": nested.NestedStruct, "id": int}`, getFile(t, "tests", "tests/structs4.go", ""))
+	require.Nil(t, err)
+
+	content, e = body.Content["application/json"]
+	require.True(t, e)
+	require.Equal(t, "", content.Example)
+	require.Equal(t, "object", content.Schema.Type)
+	require.Equal(t, "#/components/schemas/NestedStruct", content.Schema.Properties["user"].Ref)
+
+	// Test json schema with array of nested structs
+	body, err = parser.parseRequest(`@openapiRequest application/json {"user": []nested.NestedStruct, "id": int}`, getFile(t, "tests", "tests/structs4.go", ""))
+	require.Nil(t, err)
+
+	content, e = body.Content["application/json"]
+	require.True(t, e)
+	require.Equal(t, "", content.Example)
+	require.Equal(t, "object", content.Schema.Type)
+	require.Equal(t, "array", content.Schema.Properties["user"].Type)
+	require.Equal(t, "#/components/schemas/NestedStruct", content.Schema.Properties["user"].Items.Ref)
 }
 
 func TestParseResponse(t *testing.T) {
@@ -126,7 +169,15 @@ func TestParseResponse(t *testing.T) {
 	require.Equal(t, "application/json", contentType)
 	require.Equal(t, "", content.Example)
 	require.Equal(t, "", content.Schema.Type)
-	require.NotEqual(t, "", content.Schema.Ref)
+	require.Equal(t, "#/components/schemas/User", content.Schema.Ref)
+
+	// Test array of structs
+	status, contentType, content, err = parser.parseResponse(`@openapiResponse 200 application/json []User`, getFile(t, "tests", "tests/structs.go", ""))
+	require.Nil(t, err)
+	require.Equal(t, "200", status)
+	require.Equal(t, "application/json", contentType)
+	require.Equal(t, "array", content.Schema.Type)
+	require.Equal(t, "#/components/schemas/User", content.Schema.Items.Ref)
 
 	// Test json schema
 	status, contentType, content, err = parser.parseResponse(`@openapiResponse 200 application/json {"user": User, "id": int}`, File{})
@@ -136,6 +187,35 @@ func TestParseResponse(t *testing.T) {
 	require.Equal(t, "", content.Example)
 	require.Equal(t, "object", content.Schema.Type)
 	require.Equal(t, "integer", content.Schema.Properties["id"].Type)
+
+	// Test json schema with array
+	status, contentType, content, err = parser.parseResponse(`@openapiResponse 200 application/json {"user": []User, "id": int}`, getFile(t, "tests", "tests/structs.go", ""))
+	require.Nil(t, err)
+	require.Equal(t, "200", status)
+	require.Equal(t, "application/json", contentType)
+	require.Equal(t, "", content.Example)
+	require.Equal(t, "object", content.Schema.Type)
+	require.Equal(t, "array", content.Schema.Properties["user"].Type)
+	require.Equal(t, "#/components/schemas/User", content.Schema.Properties["user"].Items.Ref)
+
+	// Test json schema with nested struct
+	status, contentType, content, err = parser.parseResponse(`@openapiResponse 200 application/json {"user": nested.NestedStruct, "id": int}`, getFile(t, "tests", "tests/structs4.go", ""))
+	require.Nil(t, err)
+	require.Equal(t, "200", status)
+	require.Equal(t, "application/json", contentType)
+	require.Equal(t, "", content.Example)
+	require.Equal(t, "object", content.Schema.Type)
+	require.Equal(t, "#/components/schemas/NestedStruct", content.Schema.Properties["user"].Ref)
+
+	// Test json schema with array of nested structs
+	status, contentType, content, err = parser.parseResponse(`@openapiResponse 200 application/json {"user": []nested.NestedStruct, "id": int}`, getFile(t, "tests", "tests/structs4.go", ""))
+	require.Nil(t, err)
+	require.Equal(t, "200", status)
+	require.Equal(t, "application/json", contentType)
+	require.Equal(t, "", content.Example)
+	require.Equal(t, "object", content.Schema.Type)
+	require.Equal(t, "array", content.Schema.Properties["user"].Type)
+	require.Equal(t, "#/components/schemas/NestedStruct", content.Schema.Properties["user"].Items.Ref)
 
 	// Test application/octet-stream
 	status, contentType, content, err = parser.parseResponse(`@openapiResponse 200 application/octet-stream`, File{})
@@ -154,11 +234,19 @@ func TestParseStruct(t *testing.T) {
 	}
 	parser := NewParser(&doc, newStructsParser())
 
-	s, err := parser.parseStruct("Test", getFile(t, "tests", "tests/uuid_structs.go", ""))
+	s, err := parser.parseStruct(&ParsedType{
+		Name: "Test",
+		Kind: structType,
+		File: getFile(t, "tests", "tests/uuid_structs.go", ""),
+	})
 	require.NotNil(t, err)
 	require.Equal(t, "struct type with name 'Test' was not found in package 'tests' with import path ''", err.Error())
 
-	s, err = parser.parseStruct("UUIDUser", getFile(t, "tests", "tests/structs.go", ""))
+	s, err = parser.parseStruct(&ParsedType{
+		Name: "UUIDUser",
+		Kind: structType,
+		File: getFile(t, "tests", "tests/uuid_structs.go", ""),
+	})
 	require.Nil(t, err)
 	require.Equal(t, "", s.Type)
 	require.NotEqual(t, "", s.Ref)
@@ -175,18 +263,40 @@ func TestParseStruct(t *testing.T) {
 	require.Equal(t, "testDescription", user.Properties["description"].Description)
 
 	// using cache
-	s, err = parser.parseStruct("[]UUIDUser", File{})
+	s, err = parser.parseStruct(&ParsedType{
+		Name: "[]UUIDUser",
+		Kind: arrayType,
+		File: File{},
+		Nested: &ParsedType{
+			Name: "UUIDUser",
+			Kind: structType,
+			File: File{},
+		},
+	})
 	require.Nil(t, err)
 	require.Equal(t, "array", s.Type)
 
 	// nested struct
-	s, err = parser.parseStruct("nested.NestedStruct", getFile(t, "tests", "tests/structs4.go", ""))
+	s, err = parser.parseStruct(&ParsedType{
+		Name: "Struct4",
+		Kind: structType,
+		File: getFile(t, "tests", "tests/structs4.go", ""),
+	})
 	require.Nil(t, err)
-	require.Equal(t, "github.com/onrik/gaws/tests/nested", s.importPath)
+	require.Equal(t, "", s.importPath)
+	require.Equal(t, "github.com/onrik/gaws/tests/nested", parser.doc.Components.Schemas["NestedStruct"].importPath)
 
 	// even more nested struct with duplicate module name
-	require.Equal(t, "github.com/onrik/gaws/tests/nested", parser.doc.Components.Schemas["NestedStruct"].importPath)
 	require.Equal(t, "github.com/onrik/gaws/tests/nested/nested", parser.doc.Components.Schemas["nested.NestedStruct"].importPath)
+
+	// struct description
+	s, err = parser.parseStruct(&ParsedType{
+		Name: "DescriptionStruct",
+		Kind: structType,
+		File: getFile(t, "tests", "tests/description_structs.go", ""),
+	})
+	require.Nil(t, err)
+	require.Equal(t, "Test description", parser.doc.Components.Schemas["DescriptionStruct"].Description)
 }
 
 func TestTypeToProperty(t *testing.T) {
@@ -195,58 +305,76 @@ func TestTypeToProperty(t *testing.T) {
 		Paths:      map[string]Path{},
 		Components: Component{map[string]SecurityScheme{}, map[string]*Schema{}}}, newStructsParser())
 
-	p, err := parser.typeToProperty("", "int", File{})
+	p, err := parser.typeToProperty(parser.mustParseType("int", File{}))
 	require.Nil(t, err)
 	require.Equal(t, "integer", p.Type)
 	require.Equal(t, "", p.Format)
 
-	p, err = parser.typeToProperty("", "*int", File{})
+	p, err = parser.typeToProperty(parser.mustParseType("*int", File{}))
 	require.Nil(t, err)
 	require.Equal(t, "integer", p.Type)
 	require.Equal(t, "", p.Format)
 
-	p, err = parser.typeToProperty("", "string", File{})
+	p, err = parser.typeToProperty(parser.mustParseType("string", File{}))
 	require.Nil(t, err)
 	require.Equal(t, "string", p.Type)
 	require.Equal(t, "", p.Format)
 
-	p, err = parser.typeToProperty("", "time.Time", File{})
+	p, err = parser.typeToProperty(parser.mustParseType("time.Time", File{}))
 	require.Nil(t, err)
 	require.Equal(t, "string", p.Type)
 	require.Equal(t, "date-time", p.Format)
 
-	p, err = parser.typeToProperty("", "*time.Time", File{})
+	p, err = parser.typeToProperty(parser.mustParseType("*time.Time", File{}))
 	require.Nil(t, err)
 	require.Equal(t, "string", p.Type)
 	require.Equal(t, "date-time", p.Format)
 
-	p, err = parser.typeToProperty("", "[]string", File{})
+	p, err = parser.typeToProperty(parser.mustParseType("[]string", File{}))
 	require.Nil(t, err)
 	require.Equal(t, "array", p.Type)
 	require.NotNil(t, p.Items)
 	require.Equal(t, "string", p.Items.Type)
 
-	p, err = parser.typeToProperty("", "User", getFile(t, "nested", "tests/nested/nested.go", "github.com/onrik/gaws/tests/nested"))
-	require.NotNil(t, err)
-	require.Equal(t, "type with name 'User' was not found in package 'tests/nested' with import path 'github.com/onrik/gaws/tests/nested'", err.Error())
-
-	p, err = parser.typeToProperty("", "User", getFile(t, "tests", "tests/structs.go", ""))
+	p, err = parser.typeToProperty(parser.mustParseType("User", getFile(t, "tests", "tests/structs.go", "")))
 	require.Nil(t, err)
 	require.Equal(t, "#/components/schemas/User", p.Ref)
 
 	// alias
-	p, err = parser.typeToProperty("", "Alias", getFile(t, "tests", "tests/alias_structs.go", ""))
+	p, err = parser.typeToProperty(parser.mustParseType("Alias", getFile(t, "tests", "tests/alias_structs.go", "")))
 	require.Nil(t, err)
 	require.Equal(t, "#/components/schemas/StructForAlias", p.Ref)
 	require.Equal(t, map[string]Property{"name": {Type: "string"}}, parser.doc.Components.Schemas["StructForAlias"].Properties)
 
 	// nested alias
-	p, err = parser.typeToProperty("", "NestedAlias", getFile(t, "tests", "tests/alias_structs.go", ""))
+	p, err = parser.typeToProperty(parser.mustParseType("NestedAlias", getFile(t, "tests", "tests/alias_structs.go", "")))
 	require.Nil(t, err)
 	require.Equal(t, "#/components/schemas/NestedStruct", p.Ref)
+
+	// alias for simple type
+	p, err = parser.typeToProperty(parser.mustParseType("SimpleAlias", getFile(t, "tests", "tests/alias_structs.go", "")))
+	require.Nil(t, err)
+	require.Equal(t, "string", p.Type)
+
+	// alias for nested simple type
+	p, err = parser.typeToProperty(parser.mustParseType("NestedSimpleAlias", getFile(t, "tests", "tests/alias_structs.go", "")))
+	require.Nil(t, err)
+	require.Equal(t, "", p.Ref)
+	require.Equal(t, "string", p.Type)
 }
 
 func TestParseTags(t *testing.T) {
 	tags := parseTags("@openapiTags foo,  bar")
 	require.Equal(t, []string{"foo", "bar"}, tags)
+}
+
+func TestParseType(t *testing.T) {
+	parser := NewParser(&Doc{
+		OpenAPI:    "3.0.0",
+		Paths:      map[string]Path{},
+		Components: Component{map[string]SecurityScheme{}, map[string]*Schema{}}}, newStructsParser())
+
+	_, err := parser.parseType("User", getFile(t, "nested", "tests/nested/nested.go", "github.com/onrik/gaws/tests/nested"))
+	require.NotNil(t, err)
+	require.Equal(t, "type with name 'User' was not found in package 'tests/nested' with import path 'github.com/onrik/gaws/tests/nested'", err.Error())
 }

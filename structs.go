@@ -9,12 +9,15 @@ import (
 	"strings"
 )
 
+const systemFieldName = "_"
+
 type StructField struct {
 	Name       string
 	Type       string
 	Tag        string
 	IsExported bool
 	IsPointer  bool
+	IsSystem   bool
 }
 
 type Struct struct {
@@ -94,17 +97,23 @@ func (p *structsParser) inspectFile(importPath string) func(node ast.Node) bool 
 			if len(field.Names) > 0 {
 				f.Name = field.Names[0].Name
 				f.IsExported = field.Names[0].IsExported()
+				f.IsSystem = f.Name == systemFieldName
 			}
+
 			if field.Tag != nil {
 				f.Tag = field.Tag.Value
 			}
-			if !f.IsExported {
-				continue
-			}
-			f.Type = getType(field.Type)
-			f.IsPointer = strings.HasPrefix(f.Type, "*")
-			if f.Type == "" {
-				continue
+
+			if !f.IsSystem {
+				if !f.IsExported {
+					continue
+				}
+
+				f.Type = getType(field.Type)
+				f.IsPointer = strings.HasPrefix(f.Type, "*")
+				if f.Type == "" {
+					continue
+				}
 			}
 
 			fields = append(fields, f)

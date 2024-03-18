@@ -297,6 +297,15 @@ func TestParseStruct(t *testing.T) {
 	})
 	require.Nil(t, err)
 	require.Equal(t, "Test description", parser.doc.Components.Schemas["DescriptionStruct"].Description)
+
+	// struct field extensions
+	s, err = parser.parseStruct(&ParsedType{
+		Name: "ExtensionsStruct",
+		Kind: structType,
+		File: getFile(t, "tests", "tests/extensions_structs.go", ""),
+	})
+	require.Nil(t, err)
+	require.Equal(t, map[string]string{"x-test-ext": "test", "x-test-ext2": "1"}, parser.doc.Components.Schemas["ExtensionsStruct"].Properties["ID"].Extensions)
 }
 
 func TestTypeToProperty(t *testing.T) {

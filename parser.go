@@ -387,13 +387,13 @@ func (p *Parser) parseStruct(t *ParsedType) (*Schema, error) {
 	schema.importPath = st.Pkg
 	schema.Type = "object"
 	for i := range st.Fields {
-		params, err := getParamsFromTag(st.Fields[i].Tag)
+		tags, err := getParamsFromTag(st.Fields[i].Tag)
 		if err != nil {
 			return nil, err
 		}
 
 		if st.Fields[i].IsSystem {
-			schema.Description = params["description"]
+			schema.Description = tags.Description
 			continue
 		}
 
@@ -407,7 +407,7 @@ func (p *Parser) parseStruct(t *ParsedType) (*Schema, error) {
 		}
 
 		property := Property{
-			Type: params["type"],
+			Type: tags.Openapi["type"],
 		}
 		if property.Type == "" {
 			parsedType, err := p.parseType(st.Fields[i].Type, t.File)
@@ -421,23 +421,26 @@ func (p *Parser) parseStruct(t *ParsedType) (*Schema, error) {
 			}
 		}
 
-		if params["format"] != "" {
-			property.Format = params["format"]
+		if tags.Openapi["format"] != "" {
+			property.Format = tags.Openapi["format"]
 		}
-		if params["example"] != "" {
-			property.Example = params["example"]
+		if tags.Example != "" {
+			property.Example = tags.Example
 		}
-		if params["description"] != "" {
-			property.Description = params["description"]
+		if tags.Description != "" {
+			property.Description = tags.Description
 		}
-		if params["default"] != "" {
-			property.Default = params["default"]
+		if tags.Openapi["default"] != "" {
+			property.Default = tags.Openapi["default"]
 		}
-		if params["enum"] != "" {
-			property.Enum = strings.Split(params["enum"], ",")
+		if tags.Enum != "" {
+			property.Enum = strings.Split(tags.Enum, ",")
 		}
-		if _, ok := params["required"]; ok {
+		if _, ok := tags.Openapi["required"]; ok {
 			schema.Required = append(schema.Required, name)
+		}
+		if tags.Extensions != nil {
+			property.Extensions = tags.Extensions
 		}
 
 		schema.Properties[name] = property

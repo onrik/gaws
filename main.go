@@ -10,7 +10,7 @@ import (
 	"path/filepath"
 	"strings"
 
-	"gopkg.in/yaml.v3"
+	"github.com/goccy/go-yaml"
 )
 
 var (
@@ -92,8 +92,7 @@ func main() {
 		os.Exit(1)
 	}
 
-	encoder := yaml.NewEncoder(os.Stdout)
-	encoder.SetIndent(indent)
+	encoder := yaml.NewEncoder(os.Stdout, yaml.Indent(indent))
 	err = encoder.Encode(doc)
 	if err != nil {
 		log.Println(err)

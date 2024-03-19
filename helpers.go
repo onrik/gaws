@@ -33,20 +33,40 @@ func getTag(s, tag string) string {
 	return strings.Split(t.Get(tag), ",")[0]
 }
 
-func getParamsFromTag(s string) (map[string]string, error) {
+type Tags struct {
+	Openapi     map[string]string
+	Description string
+	Enum        string
+	Example     string
+	Extensions  map[string]string
+}
+
+func getParamsFromTag(s string) (Tags, error) {
 	t := reflect.StructTag(strings.Trim(s, "`"))
 	params, err := parseParams(t.Get("openapi"))
 	if err != nil {
-		return nil, err
+		return Tags{}, err
 	}
 
-	params["description"] = t.Get("openapiDesc")
-	params["enum"] = t.Get("openapiEnum")
-	if params["example"] == "" {
-		params["example"] = t.Get("openapiExample")
+	description := t.Get("openapiDesc")
+	enum := t.Get("openapiEnum")
+	example := params["example"]
+	if example == "" {
+		example = t.Get("openapiExample")
 	}
 
-	return params, nil
+	extensions, err := parseParams(t.Get("openapiExt"))
+	if err != nil {
+		return Tags{}, err
+	}
+
+	return Tags{
+		Openapi:     params,
+		Description: description,
+		Enum:        enum,
+		Example:     example,
+		Extensions:  extensions,
+	}, nil
 }
 
 func parseParams(str string) (map[string]string, error) {

@@ -22,12 +22,14 @@ func TestStrIn(t *testing.T) {
 }
 
 func TestGetParamsFromTag(t *testing.T) {
-	values, err := getParamsFromTag(`openapiDesc:"foo" openapiExample:"22" openapiEnum:"1,2,3"`)
+	tags, err := getParamsFromTag(`openapiDesc:"foo" openapiExample:"22" openapiEnum:"1,2,3" openapi:"required" openapiExt:"x-test=test"`)
 	require.Nil(t, err)
-	require.Equal(t, 3, len(values))
-	require.Equal(t, "foo", values["description"])
-	require.Equal(t, "22", values["example"])
-	require.Equal(t, "1,2,3", values["enum"])
+	require.Equal(t, 1, len(tags.Openapi))
+	require.Equal(t, "foo", tags.Description)
+	require.Equal(t, "22", tags.Example)
+	require.Equal(t, "1,2,3", tags.Enum)
+	require.Equal(t, "", tags.Openapi["required"])
+	require.Equal(t, "test", tags.Extensions["x-test"])
 }
 
 func TestParseParams(t *testing.T) {

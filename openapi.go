@@ -15,6 +15,7 @@ type Property struct {
 	AdditionalProperties *map[string]string  `yaml:"additionalProperties,omitempty"`
 	Items                *Schema             `yaml:"items,omitempty"`
 	Ref                  string              `yaml:"$ref,omitempty"`
+	Extensions           map[string]string   `yaml:",inline"`
 }
 
 type Schema struct {

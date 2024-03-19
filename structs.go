@@ -9,7 +9,9 @@ import (
 	"strings"
 )
 
-const systemFieldName = "_"
+const (
+	systemFieldName = "_"
+)
 
 type StructField struct {
 	Name       string

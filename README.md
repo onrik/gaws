@@ -20,11 +20,11 @@ type User struct {
 	_         struct{}  `json:"-" openapiDesc:"User"` // Description for enitre struct
 	ID        uint      `json:"id"`
 	Name      string    `json:"name" openapiExt:"x-ext-key:ext-value"` //  Passing openapi extensions to spec as is
-	Email     string    `json:"email" openapiDesc:"User's email'"` // Description for current field
+	Email     string    `json:"email" openapiDesc:"User's email"` // Description for current field
 	IsAdmin   bool      `json:"is_admin"`
 	Groups    []Group   `json:"groups"`
 	CreatedAt time.Time `json:"created_at"`
-	Status    string    `json:"status" openapiEnum:"new confirmed deleted"` // Enum for current field values	
+	Status    string    `json:"status" openapiEnum:"new,confirmed,deleted"` // Enum for current field values	
 }
 
 type createUserRequest struct {

@@ -168,7 +168,7 @@ func (p *Parser) parsePath(s string) (method, path string, deprecated bool, err 
 	return
 }
 
-// parseRequest @openapiParam foo in=path, type=int, default=1, required=true
+// parseRequest @openapiParam foo in=path, type=int, default=1, required=true, enum=1 2 3
 func (p *Parser) parseParam(s string) (Parameter, error) {
 	s = strings.TrimPrefix(s, paramPrefix)
 	splits := strings.SplitN(s, " ", 2)
@@ -192,6 +192,11 @@ func (p *Parser) parseParam(s string) (Parameter, error) {
 		required = true
 	}
 
+	var enum []string
+	if enumValues, ok := params["enum"]; ok {
+		enum = strings.Split(enumValues, " ")
+	}
+
 	param := Parameter{
 		Name:     trim(splits[0]),
 		In:       params["in"],
@@ -202,6 +207,7 @@ func (p *Parser) parseParam(s string) (Parameter, error) {
 			Example:     params["example"],
 			Default:     params["default"],
 			Description: params["description"],
+			Enum:        enum,
 		},
 	}
 

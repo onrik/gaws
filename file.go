@@ -6,10 +6,13 @@ import (
 	"go/parser"
 	"go/token"
 	"path/filepath"
+	"regexp"
 	"strings"
 
 	"golang.org/x/tools/go/packages"
 )
+
+var version = regexp.MustCompile(`v[0-9]+`)
 
 type Package struct {
 	FSPath     string
@@ -55,10 +58,15 @@ func (f *File) ParseImport(pkgName, typeName string) (File, error) {
 func (f *File) getImportPathName(fileImport *ast.ImportSpec) string {
 	if fileImport.Name != nil {
 		return fileImport.Name.Name
-	} else {
-		fileImportChunks := strings.Split(strings.Trim(fileImport.Path.Value, `"`), "/")
-		return fileImportChunks[len(fileImportChunks)-1]
 	}
+
+	fileImportChunks := strings.Split(strings.Trim(fileImport.Path.Value, `"`), "/")
+	name := fileImportChunks[len(fileImportChunks)-1]
+	if version.MatchString(name) {
+		name = fileImportChunks[len(fileImportChunks)-2]
+	}
+
+	return name
 }
 
 func (f *File) getImportPathForPkg(pkg string, file *ast.File) (string, bool) {

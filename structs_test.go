@@ -13,7 +13,7 @@ func TestParseStructs(t *testing.T) {
 	st, err := p.parse(Package{FSPath: "./tests/", ImportPath: ""})
 	require.NoError(t, err)
 	require.Nil(t, err)
-	require.Equal(t, 15, len(st))
+	require.Equal(t, 17, len(st))
 
 	s, ok := st["User"]
 	require.True(t, ok)

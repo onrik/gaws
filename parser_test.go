@@ -306,6 +306,16 @@ func TestParseStruct(t *testing.T) {
 	})
 	require.Nil(t, err)
 	require.Equal(t, map[string]string{"x-test-ext": "test", "x-test-ext2": "1"}, parser.doc.Components.Schemas["ExtensionsStruct"].Properties["ID"].Extensions)
+
+	// nested struct with version in path
+	s, err = parser.parseStruct(&ParsedType{
+		Name: "VersionStruct",
+		Kind: structType,
+		File: getFile(t, "tests", "tests/version_structs.go", ""),
+	})
+	require.Nil(t, err)
+	require.Equal(t, "", s.importPath)
+	require.NotNil(t, parser.doc.Components.Schemas["VersionStruct"].Properties["NestedV2"])
 }
 
 func TestTypeToProperty(t *testing.T) {
@@ -353,7 +363,7 @@ func TestTypeToProperty(t *testing.T) {
 	p, err = parser.typeToProperty(parser.mustParseType("Alias", getFile(t, "tests", "tests/alias_structs.go", "")))
 	require.Nil(t, err)
 	require.Equal(t, "#/components/schemas/StructForAlias", p.Ref)
-	require.Equal(t, map[string]Property{"name": {Type: "string"}}, parser.doc.Components.Schemas["StructForAlias"].Properties)
+	require.Equal(t, map[string]Property{"name": {Type: "string", Extensions: map[string]string{}}}, parser.doc.Components.Schemas["StructForAlias"].Properties)
 
 	// nested alias
 	p, err = parser.typeToProperty(parser.mustParseType("NestedAlias", getFile(t, "tests", "tests/alias_structs.go", "")))
